@@ -1,0 +1,21 @@
+User
+	string user_id*
+	string username
+	string first_name
+	string last_name
+	string email
+	
+
+Page
+	int page_id*
+	string alias
+	int dateAdded
+	string description
+	string title
+
+Links
+	string URL
+	string description
+
+User {1}-owns-{0..n} Page
+Page {1}-has-{0..n} Links

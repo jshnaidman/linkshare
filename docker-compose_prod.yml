@@ -1,0 +1,57 @@
+version: '3.8'
+
+# this whole file is speculative, haven't ran/planned out yet
+
+services:
+  api:
+    container_name: api
+    build:
+      context: graphql_server/
+      dockerfile: graphql.dockerfile
+      target: production-target
+    ports:
+      - '5000:5000'
+    env_file:
+      - .env
+    depends_on:
+      - db
+    volumes:
+      - api-data: /app
+
+  mongodb:
+    volumes:
+      - db-data: /var/lib/postgresql/data
+    ports:
+      - '5432:5432'
+    build:
+      context: graphql_server/
+      dockerfile: db.dockerfile
+    env_file:
+      - .env
+    secrets:
+      - mongodb_root_username
+      - mongodb_root_password
+
+  nextjs:
+    build:
+      context: nextjs/
+      dockerfile: nextjs.dockerfile
+    volumes:
+      - type: bind
+        source: ./nextjs
+        target: /usr/src/app/
+    ports:
+      - 3000:3000
+    links:
+      - rust-warp
+
+volumes:
+  db-data: {}
+  api-data: {}
+  nextjs-data: {}
+
+secrets:
+  mongodb_root_username:
+    file: ./.mongodb_root_username
+  mongodb_root_password:
+    file: ./.mongodb_root_password

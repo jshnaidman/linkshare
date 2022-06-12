@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  api:
+    container_name: api
+    build:
+      context: api/
+      dockerfile: graphql.dockerfile
+      target: dev-target
+    command: >
+      sh -c "$$(go run server.go &) &&
+             tail -f /dev/null"
+    ports:
+      - '5000:5000'
+    env_file:
+      - .env
+    depends_on:
+      - mongodb
+    volumes:
+      - type: bind
+        source: api/
+        target: /app
+  mongo:
+    container_name: mongo
+    volumes:
+      - db-data:/data/db
+    ports:
+      - '127.0.0.1:27017:27017'
+    restart: always
+    build:
+      context: database/
+      dockerfile: db.dockerfile
+    env_file:
+      - .env
+    secrets:
+      - mongodb_root_username
+      - mongodb_root_password
+
+  nextjs:
+    container_name: nextjs
+    build:
+      context: nextjs/
+      dockerfile: nextjs.dockerfile
+      target: test-target
+    volumes:
+      - type: bind
+        source: ./nextjs
+        target: /usr/src/app/
+    ports:
+      - 3000:3000
+    command: yarn next dev
+
+volumes:
+  db-data: {}
+
+secrets:
+  mongodb_root_username:
+    file: ./.mongodb_root_username
+  mongodb_root_password:
+    file: ./.mongodb_root_password

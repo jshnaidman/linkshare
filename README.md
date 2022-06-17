@@ -11,13 +11,10 @@ Create the following two root level files:
 .mongodb_root_password
 ```
 
-Configure a root-level .env file from the .env.sample file and fill out the missing fields. 
-```
-# Need to put a google client ID in here for google login. 
-mv .env.sample .env
-```
+Configure a root-level .secrets file from the .secrets.sample file and fill out the missing fields. 
 
- [How to obtain a google client ID](https://developers.google.com/workspace/guides/create-credentials)
+
+To fill out the .secrets file, you will need a [Google Client ID](https://developers.google.com/workspace/guides/create-credentials) for the google login button on the frontend.
 
 Then, execute docker-compose up -d (must have docker installed)
 

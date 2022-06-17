@@ -62,13 +62,17 @@ Going with first approach because simple sharable links is kind of the whole poi
 # Bottlenecks
 
 ## Generating a random URL
-- Getting a random, unique URL is actually really slow at larger scales because we would need to sample from the set of URLs which haven't been taken. 
-    - To get a properly random URL, we'd want to choose randomly from larger samples. 
-        - The reason is because if we take a smaller sample, the sample will be ordered by an index (the page id). 
-        - The smaller the sample, the more 'tailed' the distribution will be towards the bottom of the index
-
+- Getting a random, unique URL can get really slow at larger scales because we would need to sample from the set of URLs which haven't been taken, and that set can potentially be quite big if we pre-generate a lot of pages.
+    - If we instead sampled from a smaller sample of the free URLs, that would work but only if the URLs are already randomly distributed. 
+        - Otherwise, when we sample they will only be distributed randomly amongst the first n IDs which won't be as random.
+        - The smaller the sample, the more 'tailed' the sampled distribution will be towards the bottom of the natural ordering of documents(by id)
+- We can shuffle the initial set of documents to get around this
+    - Doing a db.pages.aggregate([{$sample: {size: 1.2e9}}, {$out: {db: "links", coll: "newCol"}}], {allowDiskUse: true}) can take a while, won't fit into memory
 - We can solve this by instead keeping the pages which haven't been used in a separate collection. 
-- Then we can just sample from this collection and quickly get a new page.
+    - Then we can just sample from this collection and quickly get a new page since we can freely sample on n documents without having to search for those n documents first
+    - This is a fine solution, but I'd prefer to keep the pages together since they are accessed together. 
+        - It also might also complicate findAndUpdate operations into a cross-collection aggregation.
+- The best solution I found is to just randomly choose a number n before we do the query, and then skip the first n documents when search for the pages which haven't been used. This way our results won't be biased towards the tails of our page IDs.
 
 ## Quick reads
 

@@ -1,5 +1,2 @@
-.mongodb_root_username
-.mongodb_root_password
-database/data_gen
-.env
+.secrets
 .scratch

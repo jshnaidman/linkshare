@@ -1,29 +1,12 @@
 db_name = DB_NAME
 schema_version = SCHEMA_VERSION
-num_urls = 1.2e6
-bulk_load_count = num_urls / 10
-
-db.createCollection('free_pages', {
-    validator: {
-        $jsonSchema: {
-            required: ["schema_version"],
-            properties: {
-                page_id: {
-                    bsonType: "int",
-                    description: "The id of the pages which aren't being used"
-                },
-                schema_version: {
-                    bsonType: "int"
-                }
-            }
-        }
-    }
-})
+num_urls = 1.2e9
+bulk_load_count = 1e6 // num_urls / 10
 
 db.createCollection('pages', {
     validator: {
         $jsonSchema: {
-            required: ["schema_version"],
+            required: ["schema"],
             properties: {
                 _id: {
                     bsonType: "int",
@@ -47,36 +30,37 @@ db.createCollection('pages', {
                 },
                 links: {
                     bsonType: "array",
-                    allOf: [{
+                    items: {
                         bsonType: "string",
                         maxLength: 2048,
                         description: "A URL. The max length of a URL is 2048 characters"
-                    }],
-                    maxItems: 200
+                    },
+                    maxItems: 200,
                 },
                 user_id: {
-                    bsonType: "string",
+                    bsonType: "int",
                     description: "The user_id of whoever owns the page"
                 },
-                schema_version: {
+                schema: {
                     bsonType: "int"
                 }
             }
         }
     }
 })
+
 db.createCollection('users', {
     validator: {
         $jsonSchema: {
-            required: ["username", "schema_version"],
+            required: ["username", "schema"],
             properties: {
                 _id: {
-                    bsonType: "string",
-                    description: "User ID which comes from an auth service (e.g google)"
+                    bsonType: "int",
+                    description: "Unchangeable user ID"
                 },
                 username: {
                     bsonType: "string",
-                    description: "chosen username."
+                    description: "Chosen username"
                 },
                 email: {
                     bsonType: "string"
@@ -89,12 +73,13 @@ db.createCollection('users', {
                 },
                 pages: {
                     bsonType: "array",
-                    allOf: [{
+                    items: {
                         bsonType: "int",
                         description: "The pages owned by the user."
-                    }]
+                    },
+                    maxItems: 200,
                 },
-                schema_version: {
+                schema: {
                     bsonType: "int"
                 }
             }
@@ -118,12 +103,10 @@ for (let i = 0; i < num_urls; i += bulk_load_count) {
     for (let j = 0; j < bulk_load_count; j++) {
         pages.push({
             _id: NumberInt(i + j),
-            "schema_version": NumberInt(schema_version)
+            "schema": NumberInt(schema_version)
         })
     }
-    db.free_pages.insertMany(pages)
+    db.temp.insertMany(pages)
     pages = []
 }
 
-// sort them randomly
-db.free_pages.aggregate([{ "$sample": { "size": num_urls } }, { "$out": { db: db_name, coll: "free_pages" } }], { allowDiskUse: true })

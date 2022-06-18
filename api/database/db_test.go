@@ -38,7 +38,7 @@ func TestPingDB(t *testing.T) {
 
 func TestGetFreeURL(t *testing.T) {
 	// Get 10 free URL IDs. They should all be unique.
-	pageIDs := map[int32]bool{}
+	pageIDs := map[uint32]bool{}
 	total := time.Duration(0)
 	runs := 10
 	for i := 0; i < runs; i++ {

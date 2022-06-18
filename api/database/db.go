@@ -17,7 +17,22 @@ import (
 
 var urlEncoding b64.Encoding = *b64.URLEncoding.WithPadding(b64.NoPadding)
 
-func createNewPage(alias string) (pageID int32, err error) {
+type IllegalURLError string
+
+func (e IllegalURLError) Error() string {
+	return "URL input is not allowed: " + string(e)
+}
+
+type URLTakenError string
+
+func (e URLTakenError) Error() string {
+	return "URL is taken: " + string(e)
+}
+
+// This func doesn't validate if page is valid base64 encoding
+func createNewPage(alias string) (pageID uint32, err error) {
+	// TODO - fix this
+
 	client, err := GetClient()
 	if err != nil {
 		err = fmt.Errorf("no client: %w", err)
@@ -31,6 +46,7 @@ func createNewPage(alias string) (pageID int32, err error) {
 	}
 	unusedPages := db.Collection("unusedPagesIDs")
 	pages := db.Collection("pages")
+	hasAliasArg := len(alias) > 0
 
 	// Get a random page ID
 	pipeline := mongo.Pipeline{
@@ -46,18 +62,47 @@ func createNewPage(alias string) (pageID int32, err error) {
 		err = fmt.Errorf("failed to grab results from cursor: %w", err)
 		return
 	}
-	pageID, ok := results[0]["_id"].(int32)
+	tmpID, ok := results[0]["_id"].(int32)
 	if !ok {
 		err = errors.New("failed to retrieve _id from free_page result")
 		return
 	}
+	pageID = uint32(tmpID)
 
-	// Delete the random page ID from unusedPages
-	var deletedDocument = make(bson.M)
-	err = unusedPages.FindOneAndDelete(context.TODO(), bson.M{"_id": pageID}).Decode(deletedDocument)
-	if err != nil {
-		// we don't care if we discard this ID, we have many so just return
-		err = fmt.Errorf("delete error: %w", err)
+	// Let's delete the random page and check if the decoded pageID / alias are taken in parallel
+	deleteErrChan := make(chan error, 1)
+	go func() {
+		// Delete the random page ID from unusedPages
+		var deletedDocument = make(bson.M)
+		err = unusedPages.FindOneAndDelete(context.TODO(), bson.M{"_id": pageID}).Decode(deletedDocument)
+		if err != nil {
+			// we don't care if we discard this ID, we have many so just return
+			deleteErrChan <- fmt.Errorf("delete error: %w", err)
+		} else {
+			deleteErrChan <- nil
+		}
+	}()
+
+	pageURL := EncodePageID(pageID)
+
+	var checkAliasQuery bson.M
+
+	if hasAliasArg {
+		checkAliasQuery = bson.M{
+			"$or": []bson.M{
+				{"alias": pageURL},
+				{"alias": alias},
+			},
+		}
+	} else {
+		checkAliasQuery = bson.M{
+			"alias": pageURL,
+		}
+	}
+
+	result := pages.FindOne(context.TODO(), checkAliasQuery)
+	if result == nil {
+		//todo
 		return
 	}
 
@@ -67,7 +112,7 @@ func createNewPage(alias string) (pageID int32, err error) {
 		"schema":    conf.GetConf().SchemaVersion,
 	}
 
-	if len(alias) > 0 {
+	if hasAliasArg {
 		updateMap["alias"] = alias
 	}
 
@@ -78,25 +123,26 @@ func createNewPage(alias string) (pageID int32, err error) {
 		return
 	}
 
-	return res.InsertedID.(int32), err
+	return uint32(res.InsertedID.(int32)), err
 }
 
-func GetURL(urlID int) (URL string) {
+func EncodePageID(pageID uint32) (URL string) {
 	data := make([]byte, 4)
-	binary.BigEndian.PutUint32(data, uint32(urlID))
+	// mongodb stores in bson which is little endian except for timestamp and counter
+	binary.LittleEndian.PutUint32(data, pageID)
 	return urlEncoding.EncodeToString(data)
 }
 
-type IllegalURLError string
+func DecodeURL(URL string) (pageID uint32, err error) {
+	decodedURL, err := urlEncoding.DecodeString(URL)
+	if len(decodedURL) > 4 {
+		err = errors.New("decoded URL does not fit into int32")
+		return
+	}
+	// mongodb stores in bson which is little endian except for timestamp and counter
+	pageID = binary.LittleEndian.Uint32(decodedURL)
 
-func (e IllegalURLError) Error() string {
-	return "URL input is not allowed: " + string(e)
-}
-
-type URLTakenError string
-
-func (e URLTakenError) Error() string {
-	return "URL is not unique" + string(e)
+	return
 }
 
 // db.pages.aggregate([{$match: {"dateAdded": null}}, {$limit: 5000}, {$sample: {size: 1}}])

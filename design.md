@@ -67,12 +67,16 @@ Going with first approach because simple sharable links is kind of the whole poi
         - Otherwise, when we sample they will only be distributed randomly amongst the first n IDs which won't be as random.
         - The smaller the sample, the more 'tailed' the sampled distribution will be towards the bottom of the natural ordering of documents(by id)
 - We can shuffle the initial set of documents to get around this
-    - Doing a db.pages.aggregate([{$sample: {size: 1.2e9}}, {$out: {db: "links", coll: "newCol"}}], {allowDiskUse: true}) can take a while, won't fit into memory
-- We can solve this by instead keeping the pages which haven't been used in a separate collection. 
-    - Then we can just sample from this collection and quickly get a new page since we can freely sample on n documents without having to search for those n documents first
-    - This is a fine solution, but I'd prefer to keep the pages together since they are accessed together. 
-        - It also might also complicate findAndUpdate operations into a cross-collection aggregation.
-- The best solution I found is to just randomly choose a number n before we do the query, and then skip the first n documents when search for the pages which haven't been used. This way our results won't be biased towards the tails of our page IDs.
+    - Doing a db.pages.aggregate([{$sample: {size: large_number}}, {$out: {db: "links", coll: "newCol"}}], {allowDiskUse: true}) can take a while, won't fit into memory. 
+    - I would prefer to just keep it as simple as possible to just spin up a couple docker containers and immediately have something working without any kind of complicated start-up scripts or whatever to generate a random natural ordering.
+    - Later on it's possible the natural ordering might change but as long as it's not ordered by ID it should be good enough.
+- A great solution would be to just randomly choose a number n before we do the query, and then skip the first n documents when search for the pages which haven't been used. This way our results won't be biased towards the tails of our page IDs.
+    - Unfortunately the implementation of this on mongodb is that it iterates through n elements instead of just starting the aggregation from the nth element. This ends up being slow.
+- The most scalable solution is to just keep the pages which haven't been used in a separate collection. 
+    - Then we can sample from this collection and quickly get a new page since we can freely sample on n documents without having to search for those unused documents first.
+    - The downside of this is the added complexity. I'd prefer to keep the pages together since they are accessed together whenever a user creates a new page. Now page creation might take multiple operations.
+
+- In the end, I'm choosing to just keep the unused page IDs in a different collection. I probably won't need to worry about this kind of performance at the current scale, but the solution has negligible downsides.
 
 ## Quick reads
 

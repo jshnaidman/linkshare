@@ -2,7 +2,6 @@ package database
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"testing"
 	"time"
@@ -23,36 +22,38 @@ func init() {
 	}
 }
 
+// quickly fail if there are connection/firewall issues
 func TestPingDB(t *testing.T) {
 	client, err := GetClient()
 	if err != nil {
-		t.Errorf("Client error: %s", err)
-		return
+		t.Fatalf("Client error: %s", err)
 	}
 	ctx, cancel := context.WithTimeout(context.TODO(), 5*time.Second)
 	defer cancel()
 	err = client.Ping(ctx, readpref.Primary())
 	if err != nil {
-		t.Errorf("Client ping error: %s", err)
+		t.Fatalf("Client ping error: %s", err)
 	}
 }
 
 func TestGetFreeURL(t *testing.T) {
 	// Get 10 free URL IDs. They should all be unique.
-	urlIDs := map[int32]bool{}
-	for i := 0; i < 100; i++ {
-		page, err := createNewPage("")
+	pageIDs := map[int32]bool{}
+	total := time.Duration(0)
+	runs := 10
+	for i := 0; i < runs; i++ {
+		start := time.Now()
+		pageID, err := createNewPage("")
+		elapsed := time.Since(start)
+		total += elapsed
 		if err != nil {
-			t.Errorf("Failed to retrieve free URL ID: %s", err)
-			return
+			t.Fatalf("Failed to retrieve free URL ID: %s", err)
 		}
-		urlID := page["_id"].(int32)
-		fmt.Println(urlID)
-		if urlIDs[urlID] {
-			t.Error("urlID is not unique")
-			return
+		if pageIDs[pageID] {
+			t.Fatalf("pageID is not unique")
 		}
-		urlIDs[urlID] = true
+		pageIDs[pageID] = true
 	}
+	t.Logf("createNewPage took %s", total/time.Duration(runs))
 
 }

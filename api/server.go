@@ -2,8 +2,8 @@ package main
 
 import (
 	b64 "encoding/base64"
-	"linkshare_gql/graph"
-	"linkshare_gql/graph/generated"
+	"linkshare_api/graph"
+	"linkshare_api/graph/generated"
 	"log"
 	"net/http"
 	"os"

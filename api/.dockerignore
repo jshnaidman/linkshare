@@ -1,4 +1,1 @@
-target
-backend.dockerfile
-backend_prod.dockerfile
 graphql.dockerfile

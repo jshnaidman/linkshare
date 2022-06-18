@@ -6,8 +6,8 @@ package graph
 import (
 	"context"
 	"fmt"
-	"linkshare_gql/graph/generated"
-	"linkshare_gql/graph/model"
+	"linkshare_api/graph/generated"
+	"linkshare_api/graph/model"
 )
 
 func (r *mutationResolver) CreateTodo(ctx context.Context, input model.NewTodo) (*model.Todo, error) {

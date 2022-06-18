@@ -1,10 +1,12 @@
-module linkshare_gql
+module linkshare_api
 
 go 1.18
 
 require (
-	github.com/99designs/gqlgen v0.17.9
-	github.com/vektah/gqlparser/v2 v2.4.4
+	github.com/99designs/gqlgen v0.17.10
+	github.com/Netflix/go-env v0.0.0-20220526054621-78278af1949d
+	github.com/joho/godotenv v1.4.0
+	github.com/vektah/gqlparser/v2 v2.4.5
 	go.mongodb.org/mongo-driver v1.9.1
 )
 
@@ -14,7 +16,6 @@ require (
 	github.com/golang/snappy v0.0.1 // indirect
 	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/hashicorp/golang-lru v0.5.4 // indirect
-	github.com/joho/godotenv v1.4.0 // indirect
 	github.com/klauspost/compress v1.13.6 // indirect
 	github.com/mitchellh/mapstructure v1.3.1 // indirect
 	github.com/pkg/errors v0.9.1 // indirect

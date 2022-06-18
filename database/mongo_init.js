@@ -1,7 +1,7 @@
 db_name = DB_NAME
 schema_version = SCHEMA_VERSION
-num_urls = 1.2e9
-bulk_load_count = 1e6 // num_urls / 10
+num_urls = URL_CAPACITY
+bulk_load_count = RUN_ONCE_BULK_LOAD_PAGE_AMOUNT
 
 db.createCollection('pages', {
     validator: {
@@ -40,6 +40,23 @@ db.createCollection('pages', {
                 user_id: {
                     bsonType: "int",
                     description: "The user_id of whoever owns the page"
+                },
+                schema: {
+                    bsonType: "int"
+                }
+            }
+        }
+    }
+})
+
+db.createCollection('unusedPagesIDs', {
+    validator: {
+        $jsonSchema: {
+            required: ["schema"],
+            properties: {
+                _id: {
+                    bsonType: "int",
+                    description: "Unused Page IDs"
                 },
                 schema: {
                     bsonType: "int"
@@ -106,7 +123,7 @@ for (let i = 0; i < num_urls; i += bulk_load_count) {
             "schema": NumberInt(schema_version)
         })
     }
-    db.temp.insertMany(pages)
+    db.unusedPagesIDs.insertMany(pages)
     pages = []
 }
 

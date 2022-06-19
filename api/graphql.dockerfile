@@ -10,6 +10,8 @@ RUN go mod download
 
 COPY *.go ./
 COPY ./graph/ ./graph/
+COPY database/ database/
+COPY conf/ conf/
 
 RUN go build -o ./linkshare_api
 

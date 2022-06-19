@@ -9,14 +9,10 @@ db.createCollection('pages', {
             required: ["schema"],
             properties: {
                 _id: {
-                    bsonType: "int",
-                    description: "pages which are used"
-                },
-                alias: {
                     bsonType: "string",
                     maxLength: 30,
                     pattern: "[A-Za-z0-9\\-_]",
-                    description: "A custom URL for the page. Maximum 30 characters"
+                    description: "A URL for the page. Maximum 30 characters"
                 },
                 dateAdded: {
                     bsonType: "date",
@@ -38,28 +34,12 @@ db.createCollection('pages', {
                     maxItems: 200,
                 },
                 user_id: {
-                    bsonType: "int",
+                    bsonType: "objectId",
                     description: "The user_id of whoever owns the page"
                 },
                 schema: {
-                    bsonType: "int"
-                }
-            }
-        }
-    }
-})
-
-db.createCollection('unusedPagesIDs', {
-    validator: {
-        $jsonSchema: {
-            required: ["schema"],
-            properties: {
-                _id: {
                     bsonType: "int",
-                    description: "Unused Page IDs"
-                },
-                schema: {
-                    bsonType: "int"
+                    description: "Schema version"
                 }
             }
         }
@@ -71,13 +51,13 @@ db.createCollection('users', {
         $jsonSchema: {
             required: ["username", "schema"],
             properties: {
-                _id: {
-                    bsonType: "int",
-                    description: "Unchangeable user ID"
-                },
                 username: {
                     bsonType: "string",
                     description: "Chosen username"
+                },
+                google_id: {
+                    bsonType: "string",
+                    description: "The userID for google login"
                 },
                 email: {
                     bsonType: "string"
@@ -97,7 +77,8 @@ db.createCollection('users', {
                     maxItems: 200,
                 },
                 schema: {
-                    bsonType: "int"
+                    bsonType: "int",
+                    description: "Schema version"
                 }
             }
         }
@@ -106,24 +87,3 @@ db.createCollection('users', {
 
 // usernames must be unique
 db.users.createIndex({ username: 1 }, { unique: true })
-
-// aliases must be unique, but we should allow multiple pages to have null aliases
-db.pages.createIndex({ alias: 1 }, {
-    unique: true, partialFilterExpression: {
-        alias: { $type: "string" }
-    }
-})
-
-
-for (let i = 0; i < num_urls; i += bulk_load_count) {
-    pages = []
-    for (let j = 0; j < bulk_load_count; j++) {
-        pages.push({
-            _id: NumberInt(i + j),
-            "schema": NumberInt(schema_version)
-        })
-    }
-    db.unusedPagesIDs.insertMany(pages)
-    pages = []
-}
-

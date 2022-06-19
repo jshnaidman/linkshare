@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"linkshare_api/conf"
+	"math/rand"
+	"strings"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -16,6 +18,9 @@ import (
 )
 
 var urlEncoding b64.Encoding = *b64.URLEncoding.WithPadding(b64.NoPadding)
+
+// taken from base64.encodeURL
+const charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
 
 type IllegalURLError string
 
@@ -29,101 +34,95 @@ func (e URLTakenError) Error() string {
 	return "URL is taken: " + string(e)
 }
 
-// This func doesn't validate if page is valid base64 encoding
-func createNewPage(alias string) (pageID uint32, err error) {
-	// TODO - fix this
+type LinkShareDB struct {
+	client    *mongo.Client
+	db        *mongo.Database
+	pages     *mongo.Collection
+	InsertOne func(ctx context.Context, document interface{},
+		opts ...*options.InsertOneOptions) (*mongo.InsertOneResult, error)
+}
 
+func NewLinkShareDB() (linksDB *LinkShareDB, err error) {
+	linksDB = new(LinkShareDB)
 	client, err := GetClient()
 	if err != nil {
 		err = fmt.Errorf("no client: %w", err)
 		return
 	}
-	defer client.Disconnect(context.TODO())
+	linksDB.client = client
+
 	db, err := GetDatabase(client)
 	if err != nil {
 		err = fmt.Errorf("no db: %w", err)
 		return
 	}
-	unusedPages := db.Collection("unusedPagesIDs")
-	pages := db.Collection("pages")
-	hasAliasArg := len(alias) > 0
+	linksDB.db = db
+	linksDB.pages = db.Collection("pages")
 
-	// Get a random page ID
-	pipeline := mongo.Pipeline{
-		bson.D{{Key: "$sample", Value: bson.D{{Key: "size", Value: 1}}}},
-	}
-	cursor, err := unusedPages.Aggregate(context.TODO(), pipeline)
-	if err != nil {
-		err = fmt.Errorf("aggregation failure: %w", err)
-		return
-	}
-	var results []bson.M
-	if err = cursor.All(context.TODO(), &results); err != nil {
-		err = fmt.Errorf("failed to grab results from cursor: %w", err)
-		return
-	}
-	tmpID, ok := results[0]["_id"].(int32)
-	if !ok {
-		err = errors.New("failed to retrieve _id from free_page result")
-		return
-	}
-	pageID = uint32(tmpID)
+	linksDB.InsertOne = linksDB.pages.InsertOne
 
-	// Let's delete the random page and check if the decoded pageID / alias are taken in parallel
-	deleteErrChan := make(chan error, 1)
-	go func() {
-		// Delete the random page ID from unusedPages
-		var deletedDocument = make(bson.M)
-		err = unusedPages.FindOneAndDelete(context.TODO(), bson.M{"_id": pageID}).Decode(deletedDocument)
-		if err != nil {
-			// we don't care if we discard this ID, we have many so just return
-			deleteErrChan <- fmt.Errorf("delete error: %w", err)
-		} else {
-			deleteErrChan <- nil
-		}
-	}()
+	return
+}
+func (linksDB *LinkShareDB) Disconnect() {
+	linksDB.client.Disconnect(context.TODO())
+}
 
-	pageURL := EncodePageID(pageID)
-
-	var checkAliasQuery bson.M
-
-	if hasAliasArg {
-		checkAliasQuery = bson.M{
-			"$or": []bson.M{
-				{"alias": pageURL},
-				{"alias": alias},
-			},
-		}
+// This func doesn't validate if page is valid base64 encoding
+func (linksDB *LinkShareDB) CreateNewPage(URL string, userID primitive.ObjectID) (createdURL string, err error) {
+	// If the user did not input a custom URL, create a random one
+	isCustomURL := len(URL) != 0
+	if isCustomURL {
+		createdURL = URL
 	} else {
-		checkAliasQuery = bson.M{
-			"alias": pageURL,
-		}
-	}
-
-	result := pages.FindOne(context.TODO(), checkAliasQuery)
-	if result == nil {
-		//todo
-		return
+		createdURL = GetRandomURL()
 	}
 
 	updateMap := bson.M{
-		"_id":       pageID,
-		"dateAdded": primitive.NewDateTimeFromTime(time.Now()),
-		"schema":    conf.GetConf().SchemaVersion,
+		"_id":         createdURL,
+		"dateAdded":   primitive.NewDateTimeFromTime(time.Now()),
+		"description": "",
+		"title":       "",
+		"user_id":     userID,
+		"links":       []string{},
+		"schema":      conf.GetConf().SchemaVersion,
 	}
 
-	if hasAliasArg {
-		updateMap["alias"] = alias
+	_, err = linksDB.InsertOne(context.TODO(), updateMap)
+
+	// Custom URLs don't need retries, we fail if it's taken
+	if err != nil && isCustomURL {
+		if strings.Contains(err.Error(), "E11000") {
+			return "", URLTakenError(URL)
+		} else {
+			return "", err
+		}
 	}
 
-	res, err := pages.InsertOne(context.TODO(), updateMap)
-
-	if err != nil {
-		err = fmt.Errorf("insertion error: %w", err)
-		return
+	for misses := 0; err != nil && misses < 2; misses += 1 {
+		// E11000 corresponse to DuplicateKey error
+		// https://github.com/mongodb/mongo/blob/master/src/mongo/base/error_codes.yml
+		if !strings.Contains(err.Error(), "E11000") {
+			return "", fmt.Errorf("failed to create new page: %w", err)
+		}
+		createdURL = GetRandomURL()
+		updateMap["_id"] = createdURL
+		_, err = linksDB.InsertOne(context.TODO(), updateMap)
+		if err != nil && misses == 1 {
+			err = errors.New("congrats you've won the lottery")
+		}
 	}
 
-	return uint32(res.InsertedID.(int32)), err
+	return
+}
+
+func GetRandomURL() string {
+	// generate a random 6 character string
+	sb := strings.Builder{}
+	sb.Grow(6)
+	for i := 0; i < 6; i++ {
+		sb.WriteByte(charset[rand.Intn(len(charset))])
+	}
+	return sb.String()
 }
 
 func EncodePageID(pageID uint32) (URL string) {

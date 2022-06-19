@@ -2,11 +2,18 @@ package database
 
 import (
 	"context"
+	"errors"
 	"log"
+	"math/rand"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/joho/godotenv"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/mongo/readpref"
 )
 
@@ -20,6 +27,7 @@ func init() {
 	if err != nil {
 		log.Fatalf("Failed to load .env file: %s", err)
 	}
+	rand.Seed(time.Now().UnixNano())
 }
 
 // quickly fail if there are connection/firewall issues
@@ -36,24 +44,71 @@ func TestPingDB(t *testing.T) {
 	}
 }
 
-func TestGetFreeURL(t *testing.T) {
+func TestCreateNewPage(t *testing.T) {
 	// Get 10 free URL IDs. They should all be unique.
-	pageIDs := map[uint32]bool{}
+	pageURLs := map[string]bool{}
 	total := time.Duration(0)
 	runs := 10
+
+	linksDB, err := NewLinkShareDB()
+	if err != nil {
+		t.Fatal(err)
+	}
 	for i := 0; i < runs; i++ {
 		start := time.Now()
-		pageID, err := createNewPage("")
+		pageURL, err := linksDB.CreateNewPage("", primitive.NewObjectID())
 		elapsed := time.Since(start)
 		total += elapsed
 		if err != nil {
-			t.Fatalf("Failed to retrieve free URL ID: %s", err)
+			t.Fatalf("failed to create a new page: \n%s", err)
 		}
-		if pageIDs[pageID] {
-			t.Fatalf("pageID is not unique")
+		if pageURLs[pageURL] {
+			t.Fatalf("pageURL is not unique")
 		}
-		pageIDs[pageID] = true
+		pageURLs[pageURL] = true
 	}
-	t.Logf("createNewPage took %s", total/time.Duration(runs))
+	t.Logf("createNewPage took %s\n", total/time.Duration(runs))
+}
 
+func TestCreatePageNameTaken(t *testing.T) {
+
+	linksDB, err := NewLinkShareDB()
+	if err != nil {
+		t.Fatal(err)
+	}
+	test_URL := "my_page"
+	linksDB.pages.DeleteOne(context.TODO(), bson.M{"_id": test_URL})
+	pageURL, err := linksDB.CreateNewPage(test_URL, primitive.NewObjectID())
+	if pageURL != test_URL {
+		t.Fatal("created URL not same as input URL")
+	}
+	if err != nil {
+		t.Fatalf("failed to create %s", test_URL)
+	}
+	_, err = linksDB.CreateNewPage(test_URL, primitive.NewObjectID())
+	_, isURLTakenError := err.(URLTakenError)
+	if !isURLTakenError {
+		t.Fatalf("expected URLTakenError, got: %s", err)
+	}
+}
+
+func TestPageCreationLottery(t *testing.T) {
+	linksDB, err := NewLinkShareDB()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	missCount := 0
+	linksDB.InsertOne = func(ctx context.Context, document interface{}, opts ...*options.InsertOneOptions) (*mongo.InsertOneResult, error) {
+		missCount++
+		return nil, errors.New("E11000 duplicate key error")
+	}
+	_, err = linksDB.CreateNewPage("", primitive.NewObjectID())
+
+	if missCount != 3 {
+		t.Errorf("expected missCount to be 3, got: %d", missCount)
+	}
+	if !strings.Contains(err.Error(), "lottery") {
+		t.Errorf("expected lottery message! Got: %s", err)
+	}
 }

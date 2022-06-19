@@ -1,5 +1,6 @@
 User
-	string user_id*
+	objectId user_id*
+	string google_id
 	string username
 	string first_name
 	string last_name
@@ -7,18 +8,14 @@ User
 	
 
 Page
-	int page_id*
-	string alias
+	string page_url*
 	int dateAdded
 	string description
 	string title
 
 Links
-	string URL
-	string description
-
-UnusedPagesIDs
-	int page_id*
+// no description for now
+	string URL 
 
 User {1}-owns-{0..n} Page
 Page {1}-has-{0..n} Links

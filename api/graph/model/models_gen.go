@@ -2,19 +2,35 @@
 
 package model
 
-type NewTodo struct {
-	Text   string `json:"text"`
-	UserID string `json:"userId"`
+type NewPage struct {
+	URL  string `json:"URL"`
+	User string `json:"user"`
 }
 
-type Todo struct {
-	ID   string `json:"id"`
-	Text string `json:"text"`
-	Done bool   `json:"done"`
-	User *User  `json:"user"`
+type NewUser struct {
+	Username  string  `json:"username"`
+	FirstName *string `json:"firstName"`
+	Lastname  *string `json:"lastname"`
+	Email     *string `json:"email"`
+	GoogleID  *string `json:"googleID"`
 }
 
-type User struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+type Page struct {
+	URL         string    `json:"URL"`
+	Description *string   `json:"description"`
+	Title       *string   `json:"title"`
+	Links       []*string `json:"links"`
+	User        string    `json:"user"`
+}
+
+type UpdatePage struct {
+	Description *string   `json:"description"`
+	Title       *string   `json:"title"`
+	Links       []*string `json:"links"`
+}
+
+type UpdateUser struct {
+	FirstName *string `json:"firstName"`
+	Lastname  *string `json:"lastname"`
+	Email     *string `json:"email"`
 }

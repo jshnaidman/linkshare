@@ -6,7 +6,7 @@ bulk_load_count = RUN_ONCE_BULK_LOAD_PAGE_AMOUNT
 db.createCollection('pages', {
     validator: {
         $jsonSchema: {
-            required: ["schema"],
+            required: ["schema", "dateAdded", "user_id"],
             properties: {
                 _id: {
                     bsonType: "string",
@@ -16,7 +16,7 @@ db.createCollection('pages', {
                 },
                 dateAdded: {
                     bsonType: "date",
-                    description: "Date added. If missing, page is free"
+                    description: "The time at which the page was added."
                 },
                 description: {
                     bsonType: "string"
@@ -34,7 +34,7 @@ db.createCollection('pages', {
                     maxItems: 200,
                 },
                 user_id: {
-                    bsonType: "objectId",
+                    bsonType: "string",
                     description: "The user_id of whoever owns the page"
                 },
                 schema: {
@@ -49,11 +49,11 @@ db.createCollection('pages', {
 db.createCollection('users', {
     validator: {
         $jsonSchema: {
-            required: ["username", "schema"],
+            required: ["schema"],
             properties: {
-                username: {
+                _id: {
                     bsonType: "string",
-                    description: "Chosen username"
+                    description: "Username"
                 },
                 google_id: {
                     bsonType: "string",
@@ -84,6 +84,3 @@ db.createCollection('users', {
         }
     }
 })
-
-// usernames must be unique
-db.users.createIndex({ username: 1 }, { unique: true })

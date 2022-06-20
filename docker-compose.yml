@@ -12,6 +12,7 @@ services:
              tail -f /dev/null"
     ports:
       - '5000:5000'
+      - '8080:8080'
     env_file:
       - .env
       - .secrets
@@ -21,10 +22,14 @@ services:
       - type: bind
         source: api/
         target: /app
+    networks:
+      - backend
   mongo:
     container_name: mongo
     volumes:
       - db-data:/data/db
+    networks:
+      - backend
     ports:
       - '127.0.0.1:27017:27017'
     restart: always
@@ -54,3 +59,7 @@ services:
 
 volumes:
   db-data: {}
+
+networks:
+  backend:
+    driver: bridge

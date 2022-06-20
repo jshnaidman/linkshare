@@ -2,12 +2,10 @@ package database
 
 import (
 	"context"
-	b64 "encoding/base64"
-	"encoding/binary"
 	"errors"
 	"fmt"
-	"linkshare_api/conf"
-	"math/rand"
+	"linkshare_api/graph/model"
+	"linkshare_api/utils"
 	"strings"
 	"time"
 
@@ -17,15 +15,10 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-var urlEncoding b64.Encoding = *b64.URLEncoding.WithPadding(b64.NoPadding)
-
-// taken from base64.encodeURL
-const charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
-
 type IllegalURLError string
 
 func (e IllegalURLError) Error() string {
-	return "URL input is not allowed: " + string(e)
+	return "URL input must be 1-30 alphanumeric or '_','-' characters"
 }
 
 type URLTakenError string
@@ -42,9 +35,9 @@ type LinkShareDB struct {
 		opts ...*options.InsertOneOptions) (*mongo.InsertOneResult, error)
 }
 
-func NewLinkShareDB() (linksDB *LinkShareDB, err error) {
+func NewLinkShareDB(ctx context.Context) (linksDB *LinkShareDB, err error) {
 	linksDB = new(LinkShareDB)
-	client, err := GetClient()
+	client, err := GetClient(ctx)
 	if err != nil {
 		err = fmt.Errorf("no client: %w", err)
 		return
@@ -63,18 +56,34 @@ func NewLinkShareDB() (linksDB *LinkShareDB, err error) {
 
 	return
 }
-func (linksDB *LinkShareDB) Disconnect() {
-	linksDB.client.Disconnect(context.TODO())
+func (linksDB *LinkShareDB) Disconnect(ctx context.Context) {
+	linksDB.client.Disconnect(ctx)
+}
+
+func GetClient(ctx context.Context) (client *mongo.Client, err error) {
+	connectionUrl := utils.GetConf().ConnectionURL
+	mongoClient, err := mongo.Connect(ctx, options.Client().ApplyURI(connectionUrl))
+	return mongoClient, err
+}
+
+func GetDatabase(client *mongo.Client) (database *mongo.Database, err error) {
+	database = client.Database(utils.GetConf().DBName)
+	return
 }
 
 // This func doesn't validate if page is valid base64 encoding
-func (linksDB *LinkShareDB) CreateNewPage(URL string, userID primitive.ObjectID) (createdURL string, err error) {
+func (linksDB *LinkShareDB) CreateNewPage(ctx context.Context, URL string, userID string) (createdPage *model.Page, err error) {
+	createdURL := ""
 	// If the user did not input a custom URL, create a random one
 	isCustomURL := len(URL) != 0
 	if isCustomURL {
 		createdURL = URL
+		if !utils.IsValidURL(URL) {
+			err = IllegalURLError("")
+			return
+		}
 	} else {
-		createdURL = GetRandomURL()
+		createdURL = utils.GetRandomURL(6)
 	}
 
 	updateMap := bson.M{
@@ -84,17 +93,17 @@ func (linksDB *LinkShareDB) CreateNewPage(URL string, userID primitive.ObjectID)
 		"title":       "",
 		"user_id":     userID,
 		"links":       []string{},
-		"schema":      conf.GetConf().SchemaVersion,
+		"schema":      utils.GetConf().SchemaVersion,
 	}
 
-	_, err = linksDB.InsertOne(context.TODO(), updateMap)
+	_, err = linksDB.InsertOne(ctx, updateMap)
 
 	// Custom URLs don't need retries, we fail if it's taken
 	if err != nil && isCustomURL {
 		if strings.Contains(err.Error(), "E11000") {
-			return "", URLTakenError(URL)
+			return nil, URLTakenError(URL)
 		} else {
-			return "", err
+			return nil, err
 		}
 	}
 
@@ -102,57 +111,18 @@ func (linksDB *LinkShareDB) CreateNewPage(URL string, userID primitive.ObjectID)
 		// E11000 corresponse to DuplicateKey error
 		// https://github.com/mongodb/mongo/blob/master/src/mongo/base/error_codes.yml
 		if !strings.Contains(err.Error(), "E11000") {
-			return "", fmt.Errorf("failed to create new page: %w", err)
+			return nil, fmt.Errorf("failed to create new page: %w", err)
 		}
-		createdURL = GetRandomURL()
+		createdURL = utils.GetRandomURL(6)
 		updateMap["_id"] = createdURL
-		_, err = linksDB.InsertOne(context.TODO(), updateMap)
+		_, err = linksDB.InsertOne(ctx, updateMap)
 		if err != nil && misses == 1 {
 			err = errors.New("congrats you've won the lottery")
 		}
 	}
 
-	return
-}
-
-func GetRandomURL() string {
-	// generate a random 6 character string
-	sb := strings.Builder{}
-	sb.Grow(6)
-	for i := 0; i < 6; i++ {
-		sb.WriteByte(charset[rand.Intn(len(charset))])
-	}
-	return sb.String()
-}
-
-func EncodePageID(pageID uint32) (URL string) {
-	data := make([]byte, 4)
-	// mongodb stores in bson which is little endian except for timestamp and counter
-	binary.LittleEndian.PutUint32(data, pageID)
-	return urlEncoding.EncodeToString(data)
-}
-
-func DecodeURL(URL string) (pageID uint32, err error) {
-	decodedURL, err := urlEncoding.DecodeString(URL)
-	if len(decodedURL) > 4 {
-		err = errors.New("decoded URL does not fit into int32")
-		return
-	}
-	// mongodb stores in bson which is little endian except for timestamp and counter
-	pageID = binary.LittleEndian.Uint32(decodedURL)
-
-	return
-}
-
-// db.pages.aggregate([{$match: {"dateAdded": null}}, {$limit: 5000}, {$sample: {size: 1}}])
-
-func GetClient() (client *mongo.Client, err error) {
-	connectionUrl := conf.GetConf().ConnectionURL
-	mongoClient, err := mongo.Connect(context.TODO(), options.Client().ApplyURI(connectionUrl))
-	return mongoClient, err
-}
-
-func GetDatabase(client *mongo.Client) (database *mongo.Database, err error) {
-	database = client.Database(conf.GetConf().DBName)
+	createdPage = new(model.Page)
+	createdPage.User = userID
+	createdPage.URL = createdURL
 	return
 }

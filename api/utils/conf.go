@@ -1,4 +1,4 @@
-package conf
+package utils
 
 import (
 	"fmt"
@@ -12,6 +12,7 @@ type Conf struct {
 	DBUsername    string `env:"MONGO_INITDB_ROOT_USERNAME,required=true"`
 	DBPassword    string `env:"MONGO_INITDB_ROOT_PASSWORD,required=true"`
 	SchemaVersion int    `env:"SCHEMA_VERSION,required=true"`
+	ApiLogFile    string `env:"API_LOG_FILE,default=/var/log/linkshare.log"`
 	ConnectionURL string
 }
 

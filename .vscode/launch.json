@@ -9,14 +9,25 @@
             "type": "go",
             "request": "launch",
             "mode": "auto",
-            "program": "${workspaceFolder}/api/server.go"
+            "program": "${workspaceFolder}/api/server.go",
         },
         {
             "name": "API Test",
             "type": "go",
             "request": "launch",
             "mode": "test",
-            "program": "${workspaceFolder}/api/database/"
-        }
+            "program": "${workspaceFolder}/api/database/",
+        },
+        {
+            "name": "API debug",
+            "type": "go",
+            "request": "launch",
+            "mode": "debug",
+            "program": "${workspaceFolder}/api/server.go",
+            "envFile": [
+                "${workspaceFolder}/.env",
+                "${workspaceFolder}/.secrets",
+            ],
+        },
     ]
 }

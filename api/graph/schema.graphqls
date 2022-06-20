@@ -2,27 +2,57 @@
 #
 # https://gqlgen.com/getting-started/
 
-type Todo {
-  id: ID!
-  text: String!
-  done: Boolean!
-  user: User!
+type User {
+  username: String!
+  firstName: String
+  lastname: String
+  email: String
+  googleID: String
+  pages: [Page]!
 }
 
-type User {
-  id: ID!
-  name: String!
+type Page {
+  URL: String!
+  description: String
+  title: String
+  links: [String]!
+  user: String!
 }
 
 type Query {
-  todos: [Todo!]!
+  user(username: String!): User
+  page(URL: String!): Page
 }
 
-input NewTodo {
-  text: String!
-  userId: String!
+input NewPage {
+  URL: String!
+  user: String!
+}
+
+input NewUser {
+  username: String!
+  firstName: String
+  lastname: String
+  email: String
+  googleID: String
+}
+
+# Might implement changing username or googleID later
+input updateUser {
+  firstName: String
+  lastname: String
+  email: String
+}
+
+input updatePage {
+  description: String
+  title: String
+  links: [String]!
 }
 
 type Mutation {
-  createTodo(input: NewTodo!): Todo!
+  createPage(input: NewPage!): Page
+  createUser(input: NewUser!): User
+  updateUser(input: updateUser!): User!
+  updatePage(input: updatePage!): Page!
 }

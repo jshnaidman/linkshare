@@ -1,36 +1,28 @@
 package main
 
 import (
-	b64 "encoding/base64"
-	"linkshare_api/conf"
 	"linkshare_api/graph"
 	"linkshare_api/graph/generated"
+	"linkshare_api/utils"
 	"log"
 	"math/rand"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/playground"
 )
 
-const defaultPort = "8080"
-
-var URL_encoding = b64.URLEncoding.WithPadding(b64.NoPadding)
-
 func init() {
 	// init the random seed
 	rand.Seed(time.Now().UnixNano())
 	// init the conf object on startup and fail quickly if there's an environment issue
-	_ = conf.GetConf()
+	_ = utils.GetConf()
 }
 
 func main() {
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = defaultPort
-	}
+	// graphql playground port
+	port := "8080"
 
 	srv := handler.NewDefaultServer(generated.NewExecutableSchema(generated.Config{Resolvers: &graph.Resolver{}}))
 

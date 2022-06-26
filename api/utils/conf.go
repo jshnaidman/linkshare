@@ -7,16 +7,32 @@ import (
 )
 
 type Conf struct {
-	DBName        string `env:"MONGO_INITDB_DATABASE"`
-	Hostname      string `env:"HOSTNAME"`
-	DBUsername    string `env:"MONGO_INITDB_ROOT_USERNAME,required=true"`
-	DBPassword    string `env:"MONGO_INITDB_ROOT_PASSWORD,required=true"`
-	SchemaVersion int    `env:"SCHEMA_VERSION,required=true"`
-	ApiLogFile    string `env:"API_LOG_FILE,default=/var/log/linkshare.log"`
+	// required
+	AllowedOrigins         string `env:"ALLOWED_ORIGINS,required=true"`
+	CookieSecret           string `env:"COOKIE_SECRET_BASE64,required=true"`
+	DBName                 string `env:"MONGO_INITDB_DATABASE,required=true"`
+	DBHostname             string `env:"DB_HOSTNAME,required=true"`
+	DBUsername             string `env:"MONGO_INITDB_ROOT_USERNAME,required=true"`
+	DBPassword             string `env:"MONGO_INITDB_ROOT_PASSWORD,required=true"`
+	GoogleClientID         string `env:"GOOGLE_CLIENT_ID,required=true"`
+	SchemaVersion          int    `env:"SCHEMA_VERSION,required=true"`
+	SessionLifetimeSeconds int    `env:"SESSION_LIFETIME_SECONDS,required=true"`
+	// optional
+	ApiLogFile   string `env:"API_LOG_FILE,default=/var/log/linkshare.log"`
+	DBPort       string `env:"DB_PORT,default=27017"`
+	IsProduction bool   `env:"IS_PRODUCTION,default=true"`
+	DebugMode    bool   `env:"DEBUG_MODE,default=false"`
+	FrontendURL  string `env:"FRONTEND_URL,default=localhost:3000"`
+	// derived
 	ConnectionURL string
+	scheme        string
 }
 
 var gConf *Conf
+
+func GetCookieStoreKey() []byte {
+	return GetBytesFromKeyString(GetConf().CookieSecret)
+}
 
 func GetConf() *Conf {
 	if gConf != nil {
@@ -27,7 +43,16 @@ func GetConf() *Conf {
 	if err != nil {
 		panic(err)
 	}
-	gConf.ConnectionURL = fmt.Sprintf("mongodb://%s:%s@%s:27017/?authSource=admin",
-		gConf.DBUsername, gConf.DBPassword, gConf.Hostname)
+	gConf.ConnectionURL = fmt.Sprintf("mongodb://%s:%s@%s:%s/?authSource=admin",
+		gConf.DBUsername, gConf.DBPassword, gConf.DBHostname, gConf.DBPort)
+	if gConf.IsProduction {
+		gConf.DebugMode = false
+		gConf.scheme = "https://"
+	} else {
+		gConf.AllowedOrigins = "*"
+		gConf.scheme = "http://"
+	}
+	gConf.FrontendURL = gConf.scheme + gConf.FrontendURL
+
 	return gConf
 }

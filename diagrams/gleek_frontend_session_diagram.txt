@@ -1,0 +1,10 @@
+// Sequence Diagram
+Frontend- Login ->+ OAuth Provider
+OAuth Provider -. Returns JWT ->- Frontend
+Frontend - Cache JWT -> Frontend
+Frontend - Request User Profile -> Backend
+Backend - Validate JWT -> Backend
+/alt Request contains valid JWT
+	Backend -. Returns User profile -> Frontend
+/else Request does not contain valid JWT
+	Backend -. Returns HTTP 401 -> Frontend

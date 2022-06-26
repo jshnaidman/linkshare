@@ -4,13 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"linkshare_api/contextual"
 	"linkshare_api/graph/model"
 	"linkshare_api/utils"
 	"strings"
-	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
@@ -28,12 +27,17 @@ func (e URLTakenError) Error() string {
 }
 
 type LinkShareDB struct {
-	client    *mongo.Client
-	db        *mongo.Database
-	pages     *mongo.Collection
-	InsertOne func(ctx context.Context, document interface{},
-		opts ...*options.InsertOneOptions) (*mongo.InsertOneResult, error)
+	Client   *mongo.Client
+	DB       *mongo.Database
+	Pages    *mongo.Collection
+	Users    *mongo.Collection
+	Sessions *mongo.Collection
 }
+
+type InsertOneFunc func(ctx context.Context, document interface{},
+	opts ...*options.InsertOneOptions) (*mongo.InsertOneResult, error)
+type FindOneAndUpdateFunc func(ctx context.Context, filter interface{},
+	update interface{}, opts ...*options.FindOneAndUpdateOptions) *mongo.SingleResult
 
 func NewLinkShareDB(ctx context.Context) (linksDB *LinkShareDB, err error) {
 	linksDB = new(LinkShareDB)
@@ -42,22 +46,22 @@ func NewLinkShareDB(ctx context.Context) (linksDB *LinkShareDB, err error) {
 		err = fmt.Errorf("no client: %w", err)
 		return
 	}
-	linksDB.client = client
+	linksDB.Client = client
 
 	db, err := GetDatabase(client)
 	if err != nil {
 		err = fmt.Errorf("no db: %w", err)
 		return
 	}
-	linksDB.db = db
-	linksDB.pages = db.Collection("pages")
-
-	linksDB.InsertOne = linksDB.pages.InsertOne
+	linksDB.DB = db
+	linksDB.Pages = db.Collection("pages")
+	linksDB.Users = db.Collection("users")
+	linksDB.Sessions = db.Collection("sessions")
 
 	return
 }
 func (linksDB *LinkShareDB) Disconnect(ctx context.Context) {
-	linksDB.client.Disconnect(ctx)
+	linksDB.Client.Disconnect(ctx)
 }
 
 func GetClient(ctx context.Context) (client *mongo.Client, err error) {
@@ -72,7 +76,8 @@ func GetDatabase(client *mongo.Client) (database *mongo.Database, err error) {
 }
 
 // This func doesn't validate if page is valid base64 encoding
-func (linksDB *LinkShareDB) CreateNewPage(ctx context.Context, URL string, userID string) (createdPage *model.Page, err error) {
+func (linksDB *LinkShareDB) CreatePage(ctx context.Context, URL string, userID string,
+	insertOnePage InsertOneFunc) (createdPage *model.Page, err error) {
 	createdURL := ""
 	// If the user did not input a custom URL, create a random one
 	isCustomURL := len(URL) != 0
@@ -86,9 +91,9 @@ func (linksDB *LinkShareDB) CreateNewPage(ctx context.Context, URL string, userI
 		createdURL = utils.GetRandomURL(6)
 	}
 
-	updateMap := bson.M{
+	insertMap := bson.M{
 		"_id":         createdURL,
-		"dateAdded":   primitive.NewDateTimeFromTime(time.Now()),
+		"dateAdded":   utils.DateTimeNow(),
 		"description": "",
 		"title":       "",
 		"user_id":     userID,
@@ -96,7 +101,7 @@ func (linksDB *LinkShareDB) CreateNewPage(ctx context.Context, URL string, userI
 		"schema":      utils.GetConf().SchemaVersion,
 	}
 
-	_, err = linksDB.InsertOne(ctx, updateMap)
+	_, err = insertOnePage(ctx, insertMap)
 
 	// Custom URLs don't need retries, we fail if it's taken
 	if err != nil && isCustomURL {
@@ -114,8 +119,8 @@ func (linksDB *LinkShareDB) CreateNewPage(ctx context.Context, URL string, userI
 			return nil, fmt.Errorf("failed to create new page: %w", err)
 		}
 		createdURL = utils.GetRandomURL(6)
-		updateMap["_id"] = createdURL
-		_, err = linksDB.InsertOne(ctx, updateMap)
+		insertMap["_id"] = createdURL
+		_, err = insertOnePage(ctx, insertMap)
 		if err != nil && misses == 1 {
 			err = errors.New("congrats you've won the lottery")
 		}
@@ -124,5 +129,33 @@ func (linksDB *LinkShareDB) CreateNewPage(ctx context.Context, URL string, userI
 	createdPage = new(model.Page)
 	createdPage.User = userID
 	createdPage.URL = createdURL
+	return
+}
+
+func (linksDB *LinkShareDB) UpsertUserByGoogleID(ctx context.Context, user *model.User,
+	findOneUserAndUpdate FindOneAndUpdateFunc) (updatedUser *model.User, err error) {
+
+	updateOption := options.FindOneAndUpdate().SetUpsert(true)
+
+	updateData := bson.M{"$set": *user}
+
+	filter := bson.M{"google_id": user.GoogleID}
+
+	// updated user will have Id
+	err = findOneUserAndUpdate(context.TODO(), filter, updateData, updateOption).Decode(updatedUser)
+
+	return updatedUser, err
+}
+
+// func (linksDB *LinkShareDB) FindUser(user *model.User) {
+
+// }
+
+func (linksDB *LinkShareDB) CreateSession(ctx context.Context, session *contextual.Session,
+	insertOne InsertOneFunc) (err error) {
+
+	insertData := bson.M{"$set": *session}
+	_, err = insertOne(ctx, insertData)
+
 	return
 }

@@ -23,10 +23,11 @@
 
 - Link pages can be exported as a bookmark folder
 - The docker containers should be migrated to kubernetes for deployment
-- Page URLs will only last 10 years from initial creation. Afterwards it will be pruned from the db.
 - Users can create private pages that are only viewable by users they share it to.
 - Users can extend editing privileges on their page to other users with the link or to specific accounts.
-
+- ~~Page URLs will only last 10 years from initial creation. Afterwards it will be pruned from the db.~~
+    - Edit: This is actually trivial to implement in mongodb. I will only bother doing this if there at some point becomes a need to reduce storage.
+- Add viewcount to pages (should cache IP so that one person can't increase viewcount for some amount of time)
 # Unique URLs 
 
 ## First approach - minimizing storage while maximizing read response times
@@ -107,7 +108,40 @@
 - Some of the pages might be a lot more interesting than others. It's possible 20% of the pages might actually account for 80% of the traffic. 
 - We can cache the most frequently used requests in memory so that we don't have to query the DB. 
 
+# Security 
+
+## Sessions
+
+OAuth APIs like google make it tempting to use the JWT given as a means of tracking the session. The following flow gives a potential means for making sessions completely "stateless":
+
+![frontend_session](diagrams/frontend_session.png)
+
+When we need privileged access, we just send along the JWT with the request and the backend can validate the claims on the JWT on each request without any need for creating a session on the backend. This makes scaling a lot easier, since we don't need to worry about bottlenecks on the backend which can occur when you have to manage sessions on multiple instances of your backend running throughout the world. 
+
+The problem with this flow is that [using JWTs for tracking user sessions is bad practice.](http://cryto.net/~joepie91/blog/2016/06/13/stop-using-jwt-for-sessions/)
+
+Some key points (some mine, some from the above link): 
+- JWTs are encrypted, but they're still access tokens which can be stolen and used to give privileged access to unauthorized parties.
+- Therefore, it's not recommended to store them in localstorage since they will be vulnerable to cross site scripting (XSS) attacks. 
+    - While it's true that if the site is vulnerable to XSS attacks we have bigger problems we can still limit the damage that an attacker can do through other means by keeping it in an httpOnly cookie. 
+        - A malicious library or cdn script could steal your access token from localstorage, whereas this is not possible when stored in an httpOnly cookie. 
+        - When malicious code is being ran, there are endless possible avenues for abuse and the situation is bad, but keeping our access tokens out of the hands of the attacker makes it harder for them to do damage. Regardless of there being vulnerabilities either way, we want to reduce our overall risk and attack surface.
+        - For example, perhaps some library has some malicious code that listens to user keypresses to steal credentials and is reading our localstorage. In that case if the user logs in through OAuth and we use httpOnly cookies to store our sessions, then they won't succeed. 
+    - Personally I also think it's more common that users will not think twice about giving browser plugins access to localstorage since sensitive content is not supposed to be stored there. Users might think "yeah i don't mind if you store stuff on my computer" whereas for cookies they might say "wait I don't know what this is or what risk it entails, let me gooogle if this is safe". This makes storing access tokens in localstorage more vulnerable to malicious browser plugins / extensions in my opinion. 
+- We can't invalidate the JWT server side (at least without essentially reintroducing state thus defeating the purpose of this approach)
+- JWTs are larger than session cookies which increases our bandwidth
+- We have to decrypt JWTs on every request and verify the signature which is an additional unnecessary overhead.
+- Not likely but it's theoretically possible to receive a JWT from an OAuth provider that won't fit into a cookie.
+
+The flow that I'm opting to use is instead the following:
+
+![backend_session](diagrams/backend_session.png)
+
+- For the purposes of this app, there's no real benefit to signing or encrypting the session ID. So the session cookies will remain small and easily processed.
+
+- There is also the added benefit that after login, the process of validating the session cookie is the same regardless of however they logged in (don't have different JWTs or have to worry about generating my own JWT)
+
 # Data Model
 
-![ERD](ERD.png)
+![ERD](diagrams/ERD.png)
 

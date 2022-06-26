@@ -1,5 +1,6 @@
 # Test
 FROM node:18-alpine as test-target
+USER nextjs
 ENV NODE_ENV=development
 ENV PATH $PATH:/usr/src/app/node_modules/.bin
 

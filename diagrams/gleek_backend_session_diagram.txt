@@ -1,0 +1,13 @@
+// Sequence Diagram
+Frontend- Login ->+ OAuth Provider
+OAuth Provider -. Returns JWT ->- Frontend
+Frontend- Send JWT ->Backend
+Backend- Validate JWT -> Backend
+Backend- Create Session -> Backend
+Backend -. Return Session Cookie -> Frontend
+Frontend - Request User Profile -> Backend
+Backend - Validate Session Cookie -> Backend
+/alt Request contains valid session cookie
+	Backend -. Returns User profile -> Frontend
+/else Request does not contain valid session cookie
+	Backend -. Returns HTTP 401 -> Frontend

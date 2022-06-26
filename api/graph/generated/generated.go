@@ -47,7 +47,6 @@ type DirectiveRoot struct {
 type ComplexityRoot struct {
 	Mutation struct {
 		CreatePage func(childComplexity int, input model.NewPage) int
-		CreateUser func(childComplexity int, input model.NewUser) int
 		UpdatePage func(childComplexity int, input model.UpdatePage) int
 		UpdateUser func(childComplexity int, input model.UpdateUser) int
 	}
@@ -69,7 +68,7 @@ type ComplexityRoot struct {
 		Email     func(childComplexity int) int
 		FirstName func(childComplexity int) int
 		GoogleID  func(childComplexity int) int
-		Lastname  func(childComplexity int) int
+		LastName  func(childComplexity int) int
 		Pages     func(childComplexity int) int
 		Username  func(childComplexity int) int
 	}
@@ -77,7 +76,6 @@ type ComplexityRoot struct {
 
 type MutationResolver interface {
 	CreatePage(ctx context.Context, input model.NewPage) (*model.Page, error)
-	CreateUser(ctx context.Context, input model.NewUser) (*model.User, error)
 	UpdateUser(ctx context.Context, input model.UpdateUser) (*model.User, error)
 	UpdatePage(ctx context.Context, input model.UpdatePage) (*model.Page, error)
 }
@@ -115,18 +113,6 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Mutation.CreatePage(childComplexity, args["input"].(model.NewPage)), true
-
-	case "Mutation.createUser":
-		if e.complexity.Mutation.CreateUser == nil {
-			break
-		}
-
-		args, err := ec.field_Mutation_createUser_args(context.TODO(), rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.complexity.Mutation.CreateUser(childComplexity, args["input"].(model.NewUser)), true
 
 	case "Mutation.updatePage":
 		if e.complexity.Mutation.UpdatePage == nil {
@@ -232,12 +218,12 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.User.GoogleID(childComplexity), true
 
-	case "User.lastname":
-		if e.complexity.User.Lastname == nil {
+	case "User.LastName":
+		if e.complexity.User.LastName == nil {
 			break
 		}
 
-		return e.complexity.User.Lastname(childComplexity), true
+		return e.complexity.User.LastName(childComplexity), true
 
 	case "User.pages":
 		if e.complexity.User.Pages == nil {
@@ -262,7 +248,6 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	ec := executionContext{rc, e}
 	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
 		ec.unmarshalInputNewPage,
-		ec.unmarshalInputNewUser,
 		ec.unmarshalInputupdatePage,
 		ec.unmarshalInputupdateUser,
 	)
@@ -330,9 +315,9 @@ var sources = []*ast.Source{
 # https://gqlgen.com/getting-started/
 
 type User {
-  username: String!
+  username: String
   firstName: String
-  lastname: String
+  LastName: String
   email: String
   googleID: String
   pages: [Page]!
@@ -356,18 +341,11 @@ input NewPage {
   user: String!
 }
 
-input NewUser {
-  username: String!
-  firstName: String
-  lastname: String
-  email: String
-  googleID: String
-}
-
-# Might implement changing username or googleID later
+# Might implement changing googleID later
 input updateUser {
+  username: String
   firstName: String
-  lastname: String
+  lastName: String
   email: String
 }
 
@@ -379,7 +357,6 @@ input updatePage {
 
 type Mutation {
   createPage(input: NewPage!): Page
-  createUser(input: NewUser!): User
   updateUser(input: updateUser!): User!
   updatePage(input: updatePage!): Page!
 }
@@ -398,21 +375,6 @@ func (ec *executionContext) field_Mutation_createPage_args(ctx context.Context, 
 	if tmp, ok := rawArgs["input"]; ok {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
 		arg0, err = ec.unmarshalNNewPage2linkshare_apiᚋgraphᚋmodelᚐNewPage(ctx, tmp)
-		if err != nil {
-			return nil, err
-		}
-	}
-	args["input"] = arg0
-	return args, nil
-}
-
-func (ec *executionContext) field_Mutation_createUser_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
-	var err error
-	args := map[string]interface{}{}
-	var arg0 model.NewUser
-	if tmp, ok := rawArgs["input"]; ok {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
-		arg0, err = ec.unmarshalNNewUser2linkshare_apiᚋgraphᚋmodelᚐNewUser(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
@@ -598,72 +560,6 @@ func (ec *executionContext) fieldContext_Mutation_createPage(ctx context.Context
 	return fc, nil
 }
 
-func (ec *executionContext) _Mutation_createUser(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Mutation_createUser(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().CreateUser(rctx, fc.Args["input"].(model.NewUser))
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		return graphql.Null
-	}
-	res := resTmp.(*model.User)
-	fc.Result = res
-	return ec.marshalOUser2ᚖlinkshare_apiᚋgraphᚋmodelᚐUser(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_Mutation_createUser(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Mutation",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			switch field.Name {
-			case "username":
-				return ec.fieldContext_User_username(ctx, field)
-			case "firstName":
-				return ec.fieldContext_User_firstName(ctx, field)
-			case "lastname":
-				return ec.fieldContext_User_lastname(ctx, field)
-			case "email":
-				return ec.fieldContext_User_email(ctx, field)
-			case "googleID":
-				return ec.fieldContext_User_googleID(ctx, field)
-			case "pages":
-				return ec.fieldContext_User_pages(ctx, field)
-			}
-			return nil, fmt.Errorf("no field named %q was found under type User", field.Name)
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_createUser_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return
-	}
-	return fc, nil
-}
-
 func (ec *executionContext) _Mutation_updateUser(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Mutation_updateUser(ctx, field)
 	if err != nil {
@@ -707,8 +603,8 @@ func (ec *executionContext) fieldContext_Mutation_updateUser(ctx context.Context
 				return ec.fieldContext_User_username(ctx, field)
 			case "firstName":
 				return ec.fieldContext_User_firstName(ctx, field)
-			case "lastname":
-				return ec.fieldContext_User_lastname(ctx, field)
+			case "LastName":
+				return ec.fieldContext_User_LastName(ctx, field)
 			case "email":
 				return ec.fieldContext_User_email(ctx, field)
 			case "googleID":
@@ -1054,8 +950,8 @@ func (ec *executionContext) fieldContext_Query_user(ctx context.Context, field g
 				return ec.fieldContext_User_username(ctx, field)
 			case "firstName":
 				return ec.fieldContext_User_firstName(ctx, field)
-			case "lastname":
-				return ec.fieldContext_User_lastname(ctx, field)
+			case "LastName":
+				return ec.fieldContext_User_LastName(ctx, field)
 			case "email":
 				return ec.fieldContext_User_email(ctx, field)
 			case "googleID":
@@ -1294,14 +1190,11 @@ func (ec *executionContext) _User_username(ctx context.Context, field graphql.Co
 		return graphql.Null
 	}
 	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
 		return graphql.Null
 	}
-	res := resTmp.(string)
+	res := resTmp.(*string)
 	fc.Result = res
-	return ec.marshalNString2string(ctx, field.Selections, res)
+	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_User_username(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -1358,8 +1251,8 @@ func (ec *executionContext) fieldContext_User_firstName(ctx context.Context, fie
 	return fc, nil
 }
 
-func (ec *executionContext) _User_lastname(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_User_lastname(ctx, field)
+func (ec *executionContext) _User_LastName(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_User_LastName(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -1372,7 +1265,7 @@ func (ec *executionContext) _User_lastname(ctx context.Context, field graphql.Co
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.Lastname, nil
+		return obj.LastName, nil
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -1386,7 +1279,7 @@ func (ec *executionContext) _User_lastname(ctx context.Context, field graphql.Co
 	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_User_lastname(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_User_LastName(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "User",
 		Field:      field,
@@ -3341,61 +3234,6 @@ func (ec *executionContext) unmarshalInputNewPage(ctx context.Context, obj inter
 	return it, nil
 }
 
-func (ec *executionContext) unmarshalInputNewUser(ctx context.Context, obj interface{}) (model.NewUser, error) {
-	var it model.NewUser
-	asMap := map[string]interface{}{}
-	for k, v := range obj.(map[string]interface{}) {
-		asMap[k] = v
-	}
-
-	for k, v := range asMap {
-		switch k {
-		case "username":
-			var err error
-
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("username"))
-			it.Username, err = ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-		case "firstName":
-			var err error
-
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("firstName"))
-			it.FirstName, err = ec.unmarshalOString2ᚖstring(ctx, v)
-			if err != nil {
-				return it, err
-			}
-		case "lastname":
-			var err error
-
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("lastname"))
-			it.Lastname, err = ec.unmarshalOString2ᚖstring(ctx, v)
-			if err != nil {
-				return it, err
-			}
-		case "email":
-			var err error
-
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("email"))
-			it.Email, err = ec.unmarshalOString2ᚖstring(ctx, v)
-			if err != nil {
-				return it, err
-			}
-		case "googleID":
-			var err error
-
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("googleID"))
-			it.GoogleID, err = ec.unmarshalOString2ᚖstring(ctx, v)
-			if err != nil {
-				return it, err
-			}
-		}
-	}
-
-	return it, nil
-}
-
 func (ec *executionContext) unmarshalInputupdatePage(ctx context.Context, obj interface{}) (model.UpdatePage, error) {
 	var it model.UpdatePage
 	asMap := map[string]interface{}{}
@@ -3444,6 +3282,14 @@ func (ec *executionContext) unmarshalInputupdateUser(ctx context.Context, obj in
 
 	for k, v := range asMap {
 		switch k {
+		case "username":
+			var err error
+
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("username"))
+			it.Username, err = ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
 		case "firstName":
 			var err error
 
@@ -3452,11 +3298,11 @@ func (ec *executionContext) unmarshalInputupdateUser(ctx context.Context, obj in
 			if err != nil {
 				return it, err
 			}
-		case "lastname":
+		case "lastName":
 			var err error
 
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("lastname"))
-			it.Lastname, err = ec.unmarshalOString2ᚖstring(ctx, v)
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("lastName"))
+			it.LastName, err = ec.unmarshalOString2ᚖstring(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -3505,12 +3351,6 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_createPage(ctx, field)
-			})
-
-		case "createUser":
-
-			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_createUser(ctx, field)
 			})
 
 		case "updateUser":
@@ -3688,16 +3528,13 @@ func (ec *executionContext) _User(ctx context.Context, sel ast.SelectionSet, obj
 
 			out.Values[i] = ec._User_username(ctx, field, obj)
 
-			if out.Values[i] == graphql.Null {
-				atomic.AddUint32(&invalids, 1)
-			}
 		case "firstName":
 
 			out.Values[i] = ec._User_firstName(ctx, field, obj)
 
-		case "lastname":
+		case "LastName":
 
-			out.Values[i] = ec._User_lastname(ctx, field, obj)
+			out.Values[i] = ec._User_LastName(ctx, field, obj)
 
 		case "email":
 
@@ -4073,11 +3910,6 @@ func (ec *executionContext) marshalNBoolean2bool(ctx context.Context, sel ast.Se
 
 func (ec *executionContext) unmarshalNNewPage2linkshare_apiᚋgraphᚋmodelᚐNewPage(ctx context.Context, v interface{}) (model.NewPage, error) {
 	res, err := ec.unmarshalInputNewPage(ctx, v)
-	return res, graphql.ErrorOnPath(ctx, err)
-}
-
-func (ec *executionContext) unmarshalNNewUser2linkshare_apiᚋgraphᚋmodelᚐNewUser(ctx context.Context, v interface{}) (model.NewUser, error) {
-	res, err := ec.unmarshalInputNewUser(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 

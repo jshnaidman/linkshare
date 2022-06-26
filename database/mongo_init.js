@@ -1,7 +1,6 @@
 db_name = DB_NAME
 schema_version = SCHEMA_VERSION
-num_urls = URL_CAPACITY
-bulk_load_count = RUN_ONCE_BULK_LOAD_PAGE_AMOUNT
+session_lifetime_seconds = SESSION_LIFETIME_SECONDS
 
 db.createCollection('pages', {
     validator: {
@@ -34,7 +33,7 @@ db.createCollection('pages', {
                     maxItems: 200,
                 },
                 user_id: {
-                    bsonType: "string",
+                    bsonType: "objectId",
                     description: "The user_id of whoever owns the page"
                 },
                 schema: {
@@ -51,10 +50,11 @@ db.createCollection('users', {
         $jsonSchema: {
             required: ["schema"],
             properties: {
-                _id: {
+                username: {
                     bsonType: "string",
-                    description: "Username"
+                    description: "Username. Can change, so can't be _id"
                 },
+                // google_id is not indexed because we only need it on login
                 google_id: {
                     bsonType: "string",
                     description: "The userID for google login"
@@ -84,3 +84,36 @@ db.createCollection('users', {
         }
     }
 })
+
+// usernames queried often
+db.users.createIndex({ username: 1 }, { unique: true })
+
+db.createCollection('sessions', {
+    validator: {
+        $jsonSchema: {
+            required: ["schema"],
+            properties: {
+                _id: {
+                    bsonType: "string",
+                    description: "session ID"
+                },
+                user_id: {
+                    bsonType: "objectId",
+                    description: "The associated user_id of the session"
+                },
+                modified: {
+                    bsonType: "date",
+                    description: "Last date modified"
+                },
+                schema: {
+                    bsonType: "int",
+                    description: "Schema version"
+                },
+            }
+        }
+    }
+})
+
+// For now I'm just going to set session to expire after 24 hours, might implement
+// something better later. TODO 
+db.sessions.createIndex({ modified: 1 }, { sparse: true, expireAfterSeconds: session_lifetime_seconds })

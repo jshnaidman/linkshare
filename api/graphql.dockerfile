@@ -1,7 +1,7 @@
 FROM golang:1.18-alpine as build-target
 
 WORKDIR /app
-
+USER goUser
 
 COPY go.mod ./
 COPY go.sum ./

@@ -1,3 +1,4 @@
+// Entity-Relationship diagram
 User
 	string username*
 	string google_id
@@ -16,5 +17,11 @@ Links
 // no description for now
 	string URL 
 
+Sessions
+	string session_id
+	objectId user_id
+	date modified
+
 User {1}-owns-{0..n} Page
 Page {1}-has-{0..n} Links
+User {1}-has-{0..n} Sessions

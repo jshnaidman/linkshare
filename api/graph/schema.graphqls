@@ -3,9 +3,9 @@
 # https://gqlgen.com/getting-started/
 
 type User {
-  username: String!
+  username: String
   firstName: String
-  lastname: String
+  LastName: String
   email: String
   googleID: String
   pages: [Page]!
@@ -29,18 +29,11 @@ input NewPage {
   user: String!
 }
 
-input NewUser {
-  username: String!
-  firstName: String
-  lastname: String
-  email: String
-  googleID: String
-}
-
-# Might implement changing username or googleID later
+# Might implement changing googleID later
 input updateUser {
+  username: String
   firstName: String
-  lastname: String
+  lastName: String
   email: String
 }
 
@@ -52,7 +45,6 @@ input updatePage {
 
 type Mutation {
   createPage(input: NewPage!): Page
-  createUser(input: NewUser!): User
   updateUser(input: updateUser!): User!
   updatePage(input: updatePage!): Page!
 }

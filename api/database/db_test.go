@@ -39,7 +39,7 @@ func TestPingDB(t *testing.T) {
 	}
 }
 
-func TestCreateNewPage(t *testing.T) {
+func TestCreatePage(t *testing.T) {
 	// Get 10 free URL IDs. They should all be unique.
 	pageURLs := map[string]bool{}
 	total := time.Duration(0)
@@ -51,7 +51,7 @@ func TestCreateNewPage(t *testing.T) {
 	}
 	for i := 0; i < runs; i++ {
 		start := time.Now()
-		page, err := linksDB.CreateNewPage(context.TODO(), "", utils.GetRandomURL(6))
+		page, err := linksDB.CreatePage(context.TODO(), "", utils.GetRandomURL(6), linksDB.Pages.InsertOne)
 		pageURL := page.URL
 		elapsed := time.Since(start)
 		total += elapsed
@@ -63,7 +63,7 @@ func TestCreateNewPage(t *testing.T) {
 		}
 		pageURLs[pageURL] = true
 	}
-	t.Logf("createNewPage took %s\n", total/time.Duration(runs))
+	t.Logf("CreatePage took %s\n", total/time.Duration(runs))
 }
 
 func TestCreatePageNameTaken(t *testing.T) {
@@ -73,15 +73,15 @@ func TestCreatePageNameTaken(t *testing.T) {
 		t.Fatal(err)
 	}
 	test_URL := "my_page"
-	linksDB.pages.DeleteOne(context.TODO(), bson.M{"_id": test_URL})
-	page, err := linksDB.CreateNewPage(context.TODO(), test_URL, utils.GetRandomURL(6))
+	linksDB.Pages.DeleteOne(context.TODO(), bson.M{"_id": test_URL})
+	page, err := linksDB.CreatePage(context.TODO(), test_URL, utils.GetRandomURL(6), linksDB.Pages.InsertOne)
 	if page.URL != test_URL {
 		t.Fatal("created URL not same as input URL")
 	}
 	if err != nil {
 		t.Fatalf("failed to create %s", test_URL)
 	}
-	_, err = linksDB.CreateNewPage(context.TODO(), test_URL, utils.GetRandomURL(6))
+	_, err = linksDB.CreatePage(context.TODO(), test_URL, utils.GetRandomURL(6), linksDB.Pages.InsertOne)
 	_, isURLTakenError := err.(URLTakenError)
 	if !isURLTakenError {
 		t.Fatalf("expected URLTakenError, got: %s", err)
@@ -95,12 +95,12 @@ func TestPageCreationLottery(t *testing.T) {
 	}
 
 	missCount := 0
-	linksDB.InsertOne = func(ctx context.Context, document interface{}, opts ...*options.InsertOneOptions) (
+	insertMock := func(ctx context.Context, document interface{}, opts ...*options.InsertOneOptions) (
 		*mongo.InsertOneResult, error) {
 		missCount++
 		return nil, errors.New("E11000 duplicate key error")
 	}
-	_, err = linksDB.CreateNewPage(context.TODO(), "", utils.GetRandomURL(6))
+	_, err = linksDB.CreatePage(context.TODO(), "", utils.GetRandomURL(6), insertMock)
 
 	if missCount != 3 {
 		t.Errorf("expected missCount to be 3, got: %d", missCount)

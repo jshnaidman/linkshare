@@ -4,31 +4,49 @@ import (
 	"linkshare_api/graph"
 	"linkshare_api/graph/generated"
 	"linkshare_api/utils"
-	"log"
 	"math/rand"
 	"net/http"
 	"time"
 
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/playground"
+	"github.com/go-chi/chi"
+	"github.com/rs/cors"
 )
+
+var CSRFHandler utils.Middleware
+
+var conf *utils.Conf
 
 func init() {
 	// init the random seed
 	rand.Seed(time.Now().UnixNano())
 	// init the conf object on startup and fail quickly if there's an environment issue
-	_ = utils.GetConf()
+	conf = utils.GetConf()
 }
 
 func main() {
-	// graphql playground port
-	port := "8080"
+	router := chi.NewRouter()
+
+	// Add CORS middleware around every request
+	// See https://github.com/rs/cors for full option listing
+	corsMiddleware := cors.New(cors.Options{
+		AllowedOrigins:   []string{conf.AllowedOrigins},
+		AllowCredentials: true,
+		Debug:            conf.DebugMode,
+	}).Handler
+
+	router.Use(corsMiddleware)
+
+	// router.Use(auth.Middleware())
 
 	srv := handler.NewDefaultServer(generated.NewExecutableSchema(generated.Config{Resolvers: &graph.Resolver{}}))
+	router.Handle("/", playground.Handler("Linkshare", "/query"))
+	router.Handle("/query", srv)
+	// router.Handle("/loginJWT")
 
-	http.Handle("/", playground.Handler("GraphQL playground", "/query"))
-	http.Handle("/query", srv)
-
-	log.Printf("connect to http://localhost:%s/ for GraphQL playground", port)
-	log.Fatal(http.ListenAndServe(":"+port, nil))
+	err := http.ListenAndServe(":8080", router)
+	if err != nil {
+		panic(err)
+	}
 }

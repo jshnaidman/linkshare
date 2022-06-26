@@ -29,5 +29,16 @@
                 "${workspaceFolder}/.secrets",
             ],
         },
+        {
+            "name": "play debug",
+            "type": "go",
+            "request": "launch",
+            "mode": "debug",
+            "program": "/home/jshnai/test.go",
+            "envFile": [
+                "${workspaceFolder}/.env",
+                "${workspaceFolder}/.secrets",
+            ],
+        },
     ]
 }

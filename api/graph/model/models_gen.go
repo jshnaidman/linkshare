@@ -7,14 +7,6 @@ type NewPage struct {
 	User string `json:"user"`
 }
 
-type NewUser struct {
-	Username  string  `json:"username"`
-	FirstName *string `json:"firstName"`
-	Lastname  *string `json:"lastname"`
-	Email     *string `json:"email"`
-	GoogleID  *string `json:"googleID"`
-}
-
 type Page struct {
 	URL         string    `json:"URL"`
 	Description *string   `json:"description"`
@@ -30,7 +22,8 @@ type UpdatePage struct {
 }
 
 type UpdateUser struct {
+	Username  *string `json:"username"`
 	FirstName *string `json:"firstName"`
-	Lastname  *string `json:"lastname"`
+	LastName  *string `json:"lastName"`
 	Email     *string `json:"email"`
 }

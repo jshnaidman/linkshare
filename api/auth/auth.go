@@ -14,6 +14,12 @@ import (
 	"google.golang.org/api/idtoken"
 )
 
+// TODO right now we will redirect to playground, but later we will redirect to user page
+var loginRedirect string = "http://localhost:8080/"
+
+type loginValidationMethod func(bearerToken string, db *database.LinkShareDB, w http.ResponseWriter,
+	r *http.Request) (user *model.User, err error)
+
 // TODO: Testing
 func ValidateGoogleJWT(ctx context.Context, JWT string) (payload *idtoken.Payload, err error) {
 	validator, err := idtoken.NewValidator(ctx)
@@ -101,9 +107,11 @@ var bearerTokenRegex *regexp.Regexp = regexp.MustCompile(`Bearer ([a-zA-Z0-9\-_]
 //   "jti": "abc161803398874def"
 // }
 
-func LoginJWTHandleFunc(w http.ResponseWriter, r *http.Request) {
-	// TODO right now we will redirect to playground, but later we will redirect to user page
-	loginRedirect := "http://localhost:8080/"
+func GoogleLoginHandleFunc(w http.ResponseWriter, r *http.Request) {
+	handleJWTLogin(w, r, validateGoogleLogin)
+}
+
+func handleJWTLogin(w http.ResponseWriter, r *http.Request, loginValidation loginValidationMethod) {
 	// If the user is logged in and tries to access the login api, then we just redirect to the homepage.
 	user := contextual.UserForContext(r.Context())
 	if user != nil {
@@ -120,17 +128,46 @@ func LoginJWTHandleFunc(w http.ResponseWriter, r *http.Request) {
 	}
 	regMatch := bearerTokenRegex.FindStringSubmatch(authHeader)
 	var bearerToken string
-	var payload *idtoken.Payload
 	var err error
-	if len(regMatch) > 1 {
+	if len(regMatch) == 2 {
 		bearerToken = regMatch[1]
-		payload, err = ValidateGoogleJWT(r.Context(), bearerToken)
 	} else {
 		err = errors.New("loginJWTHandler - regex didn't match")
+		utils.LogDebug("loginJWTHandler - failed to validate jwt for request: %s.\n Auth header: \n%s", err, authHeader)
+		w.WriteHeader(http.StatusUnauthorized)
 	}
 
+	db, err := database.NewLinkShareDB(r.Context())
+	defer db.Disconnect(r.Context())
 	if err != nil {
-		utils.LogDebug("loginJWTHandler - failed to validate jwt for request: %s.\n Auth header: \n%s", err, authHeader)
+		utils.LogError("loginJWTHandler - Failed to retrieve db: %s", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	user, err = loginValidation(bearerToken, db, w, r)
+
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		utils.LogError("loginJWTHandler - Failed to update user: %s\n%#v", err, user)
+		return
+	}
+
+	session := contextual.NewSessionForUser(user.ID)
+	err = db.CreateSession(r.Context(), session, db.Sessions.InsertOne)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		utils.LogError("loginJWTHandler - Failed to create session: %s", err)
+		return
+	}
+	http.SetCookie(w, NewSessionCookie(session.Id, session.Modified.Time()))
+	http.Redirect(w, r, loginRedirect, http.StatusSeeOther)
+}
+
+func validateGoogleLogin(bearerToken string, db *database.LinkShareDB, w http.ResponseWriter, r *http.Request) (user *model.User, err error) {
+	payload, err := ValidateGoogleJWT(r.Context(), bearerToken)
+	if err != nil {
+		utils.LogDebug("loginJWTHandler - failed to validate jwt for request: %s", err)
 		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
@@ -150,28 +187,6 @@ func LoginJWTHandleFunc(w http.ResponseWriter, r *http.Request) {
 		Schema:    utils.GetConf().SchemaVersion,
 	}
 
-	db, err := database.NewLinkShareDB(r.Context())
-	defer db.Disconnect(r.Context())
-	if err != nil {
-		utils.LogError("loginJWTHandler - Failed to retrieve db: %s", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
 	user, err = db.UpsertUserByGoogleID(r.Context(), user, db.Users.FindOneAndUpdate)
-
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		utils.LogError("loginJWTHandler - Failed to update user: %s\n%#v", err, user)
-		return
-	}
-
-	session := contextual.NewSessionForUser(user.Id)
-	err = db.CreateSession(r.Context(), session, db.Sessions.InsertOne)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		utils.LogError("loginJWTHandler - Failed to create session: %s", err)
-		return
-	}
-	http.SetCookie(w, NewSessionCookie(session.Id, session.Modified.Time()))
-	http.Redirect(w, r, loginRedirect, http.StatusSeeOther)
+	return
 }

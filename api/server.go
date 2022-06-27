@@ -44,7 +44,7 @@ func main() {
 	srv := handler.NewDefaultServer(generated.NewExecutableSchema(generated.Config{Resolvers: &graph.Resolver{}}))
 	router.Handle("/", playground.Handler("Linkshare", "/query"))
 	router.Handle("/query", srv)
-	router.HandleFunc("/loginJWT", auth.LoginJWTHandleFunc)
+	router.HandleFunc("/loginGoogleJWT", auth.GoogleLoginHandleFunc)
 
 	err := http.ListenAndServe(":8080", router)
 	if err != nil {

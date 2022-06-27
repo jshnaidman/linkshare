@@ -2,17 +2,16 @@
 
 package model
 
-type NewPage struct {
-	URL  string `json:"URL"`
-	User string `json:"user"`
-}
+import (
+	"go.mongodb.org/mongo-driver/bson/primitive"
+)
 
 type Page struct {
-	URL         string    `json:"URL"`
-	Description *string   `json:"description"`
-	Title       *string   `json:"title"`
-	Links       []*string `json:"links"`
-	User        string    `json:"user"`
+	URL          string             `json:"URL"`
+	Description  *string            `json:"description"`
+	Title        *string            `json:"title"`
+	Links        []*string          `json:"links"`
+	OwningUserID primitive.ObjectID `json:"owningUserID"`
 }
 
 type UpdatePage struct {
@@ -22,8 +21,9 @@ type UpdatePage struct {
 }
 
 type UpdateUser struct {
-	Username  *string `json:"username"`
-	FirstName *string `json:"firstName"`
-	LastName  *string `json:"lastName"`
-	Email     *string `json:"email"`
+	UserID    primitive.ObjectID `json:"userID"`
+	Username  *string            `json:"username"`
+	FirstName *string            `json:"firstName"`
+	LastName  *string            `json:"lastName"`
+	Email     *string            `json:"email"`
 }

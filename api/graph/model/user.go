@@ -6,9 +6,9 @@ type User struct {
 	Id        primitive.ObjectID `json:"id" bson:"_id,omitempty"`
 	Username  *string            `json:"username"`
 	FirstName *string            `json:"firstName"`
-	LastName  *string            `json:"LastName"`
+	LastName  *string            `json:"lastName"`
 	Email     *string            `json:"email"`
 	GoogleID  *string            `json:"googleID"`
-	PageURLs  []string           `json:"PageURLs"`
+	PageURLs  []string           `json:"pageURLs"`
 	Schema    int                `json:"-"` // omitted from graphql
 }

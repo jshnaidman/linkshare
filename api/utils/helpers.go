@@ -2,12 +2,15 @@ package utils
 
 import (
 	"encoding/base64"
+	"fmt"
+	"io"
 	"math/rand"
 	"net/http"
 	"regexp"
 	"strings"
 	"time"
 
+	"github.com/99designs/gqlgen/graphql"
 	"github.com/gorilla/securecookie"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
@@ -49,4 +52,18 @@ func GetBytesFromKeyString(encodedString string) []byte {
 		panic(err)
 	}
 	return val
+}
+
+func MarshalObjectID(objectID primitive.ObjectID) graphql.Marshaler {
+	return graphql.WriterFunc(func(w io.Writer) {
+		w.Write([]byte(objectID.String()))
+	})
+}
+
+func UnmarshalObjectID(v interface{}) (primitive.ObjectID, error) {
+	objIDStr, ok := v.(string)
+	if !ok {
+		return primitive.ObjectID{}, fmt.Errorf("%T is not a string", v)
+	}
+	return primitive.ObjectIDFromHex(objIDStr)
 }

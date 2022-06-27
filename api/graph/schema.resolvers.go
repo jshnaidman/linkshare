@@ -10,15 +10,17 @@ import (
 	"linkshare_api/graph/generated"
 	"linkshare_api/graph/model"
 	"linkshare_api/utils"
+
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-func (r *mutationResolver) CreatePage(ctx context.Context, input model.NewPage) (*model.Page, error) {
+func (r *mutationResolver) CreatePage(ctx context.Context, url string, userID primitive.ObjectID) (*model.Page, error) {
 	db, err := database.NewLinkShareDB(ctx)
 	if err != nil {
 		utils.LogError(err.Error())
 		return nil, err
 	}
-	return db.CreatePage(ctx, input.URL, input.User, db.Pages.InsertOne)
+	return db.CreatePage(ctx, url, userID, db.Pages.InsertOne)
 }
 
 func (r *mutationResolver) UpdateUser(ctx context.Context, input model.UpdateUser) (*model.User, error) {
@@ -26,6 +28,10 @@ func (r *mutationResolver) UpdateUser(ctx context.Context, input model.UpdateUse
 }
 
 func (r *mutationResolver) UpdatePage(ctx context.Context, input model.UpdatePage) (*model.Page, error) {
+	panic(fmt.Errorf("not implemented"))
+}
+
+func (r *mutationResolver) DeletePage(ctx context.Context, url string) (*bool, error) {
 	panic(fmt.Errorf("not implemented"))
 }
 
@@ -37,29 +43,11 @@ func (r *queryResolver) Page(ctx context.Context, url string) (*model.Page, erro
 	panic(fmt.Errorf("not implemented"))
 }
 
-func (r *userResolver) Pages(ctx context.Context, obj *model.User) ([]*model.Page, error) {
-	panic(fmt.Errorf("not implemented"))
-}
-
 // Mutation returns generated.MutationResolver implementation.
 func (r *Resolver) Mutation() generated.MutationResolver { return &mutationResolver{r} }
 
 // Query returns generated.QueryResolver implementation.
 func (r *Resolver) Query() generated.QueryResolver { return &queryResolver{r} }
 
-// User returns generated.UserResolver implementation.
-func (r *Resolver) User() generated.UserResolver { return &userResolver{r} }
-
 type mutationResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
-type userResolver struct{ *Resolver }
-
-// !!! WARNING !!!
-// The code below was going to be deleted when updating resolvers. It has been copied here so you have
-// one last chance to move it out of harms way if you want. There are two reasons this happens:
-//  - When renaming or deleting a resolver the old code will be put in here. You can safely delete
-//    it when you're done.
-//  - You have helper methods in this file. Move them out to keep these resolver files clean.
-func (r *mutationResolver) LoginJwt(ctx context.Context, jwt string) (*model.User, error) {
-	panic(fmt.Errorf("not implemented"))
-}

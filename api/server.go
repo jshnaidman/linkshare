@@ -1,6 +1,7 @@
 package main
 
 import (
+	"linkshare_api/auth"
 	"linkshare_api/graph"
 	"linkshare_api/graph/generated"
 	"linkshare_api/utils"
@@ -43,7 +44,7 @@ func main() {
 	srv := handler.NewDefaultServer(generated.NewExecutableSchema(generated.Config{Resolvers: &graph.Resolver{}}))
 	router.Handle("/", playground.Handler("Linkshare", "/query"))
 	router.Handle("/query", srv)
-	// router.Handle("/loginJWT")
+	router.HandleFunc("/loginJWT", auth.LoginJWTHandleFunc)
 
 	err := http.ListenAndServe(":8080", router)
 	if err != nil {

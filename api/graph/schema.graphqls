@@ -2,13 +2,16 @@
 #
 # https://gqlgen.com/getting-started/
 
+scalar ObjectID
+
 type User {
+  id: ObjectID!
   username: String
   firstName: String
-  LastName: String
+  lastName: String
   email: String
   googleID: String
-  pages: [Page]!
+  pageURLs: [String]!
 }
 
 type Page {
@@ -16,7 +19,7 @@ type Page {
   description: String
   title: String
   links: [String]!
-  user: String!
+  owningUserID: ObjectID!
 }
 
 type Query {
@@ -24,13 +27,9 @@ type Query {
   page(URL: String!): Page
 }
 
-input NewPage {
-  URL: String!
-  user: String!
-}
-
 # Might implement changing googleID later
 input updateUser {
+  userID: ObjectID!
   username: String
   firstName: String
   lastName: String
@@ -44,7 +43,8 @@ input updatePage {
 }
 
 type Mutation {
-  createPage(input: NewPage!): Page
+  createPage(URL: String!, userID: ObjectID!): Page
   updateUser(input: updateUser!): User!
   updatePage(input: updatePage!): Page!
+  deletePage(URL: String!): Boolean
 }

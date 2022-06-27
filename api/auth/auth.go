@@ -101,79 +101,77 @@ var bearerTokenRegex *regexp.Regexp = regexp.MustCompile(`Bearer ([a-zA-Z0-9\-_]
 //   "jti": "abc161803398874def"
 // }
 
-func LoginJWTHandler(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// TODO right now we will redirect to playground, but later we will redirect to user page
-		loginRedirect := "http://localhost:8080/"
-		// If the user is logged in and tries to access the login api, then we just redirect to the homepage.
-		user := contextual.UserForContext(r.Context())
-		if user != nil {
-			http.Redirect(w, r, loginRedirect, http.StatusFound)
-			return
-		}
+func LoginJWTHandleFunc(w http.ResponseWriter, r *http.Request) {
+	// TODO right now we will redirect to playground, but later we will redirect to user page
+	loginRedirect := "http://localhost:8080/"
+	// If the user is logged in and tries to access the login api, then we just redirect to the homepage.
+	user := contextual.UserForContext(r.Context())
+	if user != nil {
+		http.Redirect(w, r, loginRedirect, http.StatusFound)
+		return
+	}
 
-		// grab the bearer token from the Authorization header
-		authHeader := r.Header.Get("Authorization")
-		if authHeader == "" {
-			utils.LogDebug("No auth header in login request")
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-		regMatch := bearerTokenRegex.FindStringSubmatch(authHeader)
-		var bearerToken string
-		var payload *idtoken.Payload
-		var err error
-		if len(regMatch) > 1 {
-			bearerToken = regMatch[1]
-			payload, err = ValidateGoogleJWT(r.Context(), bearerToken)
-		} else {
-			err = errors.New("loginJWTHandler - regex didn't match")
-		}
+	// grab the bearer token from the Authorization header
+	authHeader := r.Header.Get("Authorization")
+	if authHeader == "" {
+		utils.LogDebug("No auth header in login request")
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	regMatch := bearerTokenRegex.FindStringSubmatch(authHeader)
+	var bearerToken string
+	var payload *idtoken.Payload
+	var err error
+	if len(regMatch) > 1 {
+		bearerToken = regMatch[1]
+		payload, err = ValidateGoogleJWT(r.Context(), bearerToken)
+	} else {
+		err = errors.New("loginJWTHandler - regex didn't match")
+	}
 
-		if err != nil {
-			utils.LogDebug("loginJWTHandler - failed to validate jwt for request: %s.\n Auth header: \n%s", err, authHeader)
-			w.WriteHeader(http.StatusUnauthorized)
-			return
-		}
+	if err != nil {
+		utils.LogDebug("loginJWTHandler - failed to validate jwt for request: %s.\n Auth header: \n%s", err, authHeader)
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
 
-		// Create user object from JWT to update / create user
-		email := payload.Claims["email"].(string)
-		firstName := payload.Claims["given_name"].(string)
-		lastName := payload.Claims["family_name"].(string)
-		id := payload.Claims["sub"].(string)
+	// Create user object from JWT to update / create user
+	email := payload.Claims["email"].(string)
+	firstName := payload.Claims["given_name"].(string)
+	lastName := payload.Claims["family_name"].(string)
+	id := payload.Claims["sub"].(string)
 
-		// user will choose username later if the user profile hasn't been created yet.
-		user = &model.User{
-			FirstName: &firstName,
-			LastName:  &lastName,
-			GoogleID:  &id,
-			Email:     &email,
-			Schema:    utils.GetConf().SchemaVersion,
-		}
+	// user will choose username later if the user profile hasn't been created yet.
+	user = &model.User{
+		FirstName: &firstName,
+		LastName:  &lastName,
+		GoogleID:  &id,
+		Email:     &email,
+		Schema:    utils.GetConf().SchemaVersion,
+	}
 
-		db, err := database.NewLinkShareDB(r.Context())
-		defer db.Disconnect(r.Context())
-		if err != nil {
-			utils.LogError("loginJWTHandler - Failed to retrieve db: %s", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		user, err = db.UpsertUserByGoogleID(r.Context(), user, db.Users.FindOneAndUpdate)
+	db, err := database.NewLinkShareDB(r.Context())
+	defer db.Disconnect(r.Context())
+	if err != nil {
+		utils.LogError("loginJWTHandler - Failed to retrieve db: %s", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	user, err = db.UpsertUserByGoogleID(r.Context(), user, db.Users.FindOneAndUpdate)
 
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			utils.LogError("loginJWTHandler - Failed to update user: %s\n%#v", err, user)
-			return
-		}
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		utils.LogError("loginJWTHandler - Failed to update user: %s\n%#v", err, user)
+		return
+	}
 
-		session := contextual.NewSessionForUser(user.Id)
-		err = db.CreateSession(r.Context(), session, db.Sessions.InsertOne)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			utils.LogError("loginJWTHandler - Failed to create session: %s", err)
-			return
-		}
-		http.SetCookie(w, NewSessionCookie(session.Id, session.Modified.Time()))
-		http.Redirect(w, r, loginRedirect, http.StatusSeeOther)
-	})
+	session := contextual.NewSessionForUser(user.Id)
+	err = db.CreateSession(r.Context(), session, db.Sessions.InsertOne)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		utils.LogError("loginJWTHandler - Failed to create session: %s", err)
+		return
+	}
+	http.SetCookie(w, NewSessionCookie(session.Id, session.Modified.Time()))
+	http.Redirect(w, r, loginRedirect, http.StatusSeeOther)
 }

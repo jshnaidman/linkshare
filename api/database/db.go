@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
@@ -76,7 +77,8 @@ func GetDatabase(client *mongo.Client) (database *mongo.Database, err error) {
 }
 
 // This func doesn't validate if page is valid base64 encoding
-func (linksDB *LinkShareDB) CreatePage(ctx context.Context, URL string, userID string,
+// TODO: Need to add created pageID to owning user
+func (linksDB *LinkShareDB) CreatePage(ctx context.Context, URL string, userID primitive.ObjectID,
 	insertOnePage InsertOneFunc) (createdPage *model.Page, err error) {
 	createdURL := ""
 	// If the user did not input a custom URL, create a random one
@@ -127,7 +129,7 @@ func (linksDB *LinkShareDB) CreatePage(ctx context.Context, URL string, userID s
 	}
 
 	createdPage = new(model.Page)
-	createdPage.User = userID
+	createdPage.OwningUserID = userID
 	createdPage.URL = createdURL
 	return
 }

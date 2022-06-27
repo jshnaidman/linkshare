@@ -8,14 +8,15 @@ import (
 	"errors"
 	"fmt"
 	"linkshare_api/graph/model"
+	"linkshare_api/utils"
 	"strconv"
 	"sync"
-	"sync/atomic"
 
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/introspection"
 	gqlparser "github.com/vektah/gqlparser/v2"
 	"github.com/vektah/gqlparser/v2/ast"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 // region    ************************** generated!.gotpl **************************
@@ -38,7 +39,6 @@ type Config struct {
 type ResolverRoot interface {
 	Mutation() MutationResolver
 	Query() QueryResolver
-	User() UserResolver
 }
 
 type DirectiveRoot struct {
@@ -46,17 +46,18 @@ type DirectiveRoot struct {
 
 type ComplexityRoot struct {
 	Mutation struct {
-		CreatePage func(childComplexity int, input model.NewPage) int
+		CreatePage func(childComplexity int, url string, userID primitive.ObjectID) int
+		DeletePage func(childComplexity int, url string) int
 		UpdatePage func(childComplexity int, input model.UpdatePage) int
 		UpdateUser func(childComplexity int, input model.UpdateUser) int
 	}
 
 	Page struct {
-		Description func(childComplexity int) int
-		Links       func(childComplexity int) int
-		Title       func(childComplexity int) int
-		URL         func(childComplexity int) int
-		User        func(childComplexity int) int
+		Description  func(childComplexity int) int
+		Links        func(childComplexity int) int
+		OwningUserID func(childComplexity int) int
+		Title        func(childComplexity int) int
+		URL          func(childComplexity int) int
 	}
 
 	Query struct {
@@ -68,23 +69,22 @@ type ComplexityRoot struct {
 		Email     func(childComplexity int) int
 		FirstName func(childComplexity int) int
 		GoogleID  func(childComplexity int) int
+		Id        func(childComplexity int) int
 		LastName  func(childComplexity int) int
-		Pages     func(childComplexity int) int
+		PageURLs  func(childComplexity int) int
 		Username  func(childComplexity int) int
 	}
 }
 
 type MutationResolver interface {
-	CreatePage(ctx context.Context, input model.NewPage) (*model.Page, error)
+	CreatePage(ctx context.Context, url string, userID primitive.ObjectID) (*model.Page, error)
 	UpdateUser(ctx context.Context, input model.UpdateUser) (*model.User, error)
 	UpdatePage(ctx context.Context, input model.UpdatePage) (*model.Page, error)
+	DeletePage(ctx context.Context, url string) (*bool, error)
 }
 type QueryResolver interface {
 	User(ctx context.Context, username string) (*model.User, error)
 	Page(ctx context.Context, url string) (*model.Page, error)
-}
-type UserResolver interface {
-	Pages(ctx context.Context, obj *model.User) ([]*model.Page, error)
 }
 
 type executableSchema struct {
@@ -112,7 +112,19 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Mutation.CreatePage(childComplexity, args["input"].(model.NewPage)), true
+		return e.complexity.Mutation.CreatePage(childComplexity, args["URL"].(string), args["userID"].(primitive.ObjectID)), true
+
+	case "Mutation.deletePage":
+		if e.complexity.Mutation.DeletePage == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deletePage_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.DeletePage(childComplexity, args["URL"].(string)), true
 
 	case "Mutation.updatePage":
 		if e.complexity.Mutation.UpdatePage == nil {
@@ -152,6 +164,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Page.Links(childComplexity), true
 
+	case "Page.owningUserID":
+		if e.complexity.Page.OwningUserID == nil {
+			break
+		}
+
+		return e.complexity.Page.OwningUserID(childComplexity), true
+
 	case "Page.title":
 		if e.complexity.Page.Title == nil {
 			break
@@ -165,13 +184,6 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Page.URL(childComplexity), true
-
-	case "Page.user":
-		if e.complexity.Page.User == nil {
-			break
-		}
-
-		return e.complexity.Page.User(childComplexity), true
 
 	case "Query.page":
 		if e.complexity.Query.Page == nil {
@@ -218,19 +230,26 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.User.GoogleID(childComplexity), true
 
-	case "User.LastName":
+	case "User.id":
+		if e.complexity.User.Id == nil {
+			break
+		}
+
+		return e.complexity.User.Id(childComplexity), true
+
+	case "User.lastName":
 		if e.complexity.User.LastName == nil {
 			break
 		}
 
 		return e.complexity.User.LastName(childComplexity), true
 
-	case "User.pages":
-		if e.complexity.User.Pages == nil {
+	case "User.pageURLs":
+		if e.complexity.User.PageURLs == nil {
 			break
 		}
 
-		return e.complexity.User.Pages(childComplexity), true
+		return e.complexity.User.PageURLs(childComplexity), true
 
 	case "User.username":
 		if e.complexity.User.Username == nil {
@@ -247,7 +266,6 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	rc := graphql.GetOperationContext(ctx)
 	ec := executionContext{rc, e}
 	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
-		ec.unmarshalInputNewPage,
 		ec.unmarshalInputupdatePage,
 		ec.unmarshalInputupdateUser,
 	)
@@ -314,13 +332,16 @@ var sources = []*ast.Source{
 #
 # https://gqlgen.com/getting-started/
 
+scalar ObjectID
+
 type User {
+  id: ObjectID!
   username: String
   firstName: String
-  LastName: String
+  lastName: String
   email: String
   googleID: String
-  pages: [Page]!
+  pageURLs: [String]!
 }
 
 type Page {
@@ -328,7 +349,7 @@ type Page {
   description: String
   title: String
   links: [String]!
-  user: String!
+  owningUserID: ObjectID!
 }
 
 type Query {
@@ -336,13 +357,9 @@ type Query {
   page(URL: String!): Page
 }
 
-input NewPage {
-  URL: String!
-  user: String!
-}
-
 # Might implement changing googleID later
 input updateUser {
+  userID: ObjectID!
   username: String
   firstName: String
   lastName: String
@@ -356,9 +373,10 @@ input updatePage {
 }
 
 type Mutation {
-  createPage(input: NewPage!): Page
+  createPage(URL: String!, userID: ObjectID!): Page
   updateUser(input: updateUser!): User!
   updatePage(input: updatePage!): Page!
+  deletePage(URL: String!): Boolean
 }
 `, BuiltIn: false},
 }
@@ -371,15 +389,39 @@ var parsedSchema = gqlparser.MustLoadSchema(sources...)
 func (ec *executionContext) field_Mutation_createPage_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
-	var arg0 model.NewPage
-	if tmp, ok := rawArgs["input"]; ok {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
-		arg0, err = ec.unmarshalNNewPage2linkshare_apiᚋgraphᚋmodelᚐNewPage(ctx, tmp)
+	var arg0 string
+	if tmp, ok := rawArgs["URL"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("URL"))
+		arg0, err = ec.unmarshalNString2string(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
 	}
-	args["input"] = arg0
+	args["URL"] = arg0
+	var arg1 primitive.ObjectID
+	if tmp, ok := rawArgs["userID"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("userID"))
+		arg1, err = ec.unmarshalNObjectID2goᚗmongodbᚗorgᚋmongoᚑdriverᚋbsonᚋprimitiveᚐObjectID(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["userID"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_deletePage_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 string
+	if tmp, ok := rawArgs["URL"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("URL"))
+		arg0, err = ec.unmarshalNString2string(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["URL"] = arg0
 	return args, nil
 }
 
@@ -510,7 +552,7 @@ func (ec *executionContext) _Mutation_createPage(ctx context.Context, field grap
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().CreatePage(rctx, fc.Args["input"].(model.NewPage))
+		return ec.resolvers.Mutation().CreatePage(rctx, fc.Args["URL"].(string), fc.Args["userID"].(primitive.ObjectID))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -540,8 +582,8 @@ func (ec *executionContext) fieldContext_Mutation_createPage(ctx context.Context
 				return ec.fieldContext_Page_title(ctx, field)
 			case "links":
 				return ec.fieldContext_Page_links(ctx, field)
-			case "user":
-				return ec.fieldContext_Page_user(ctx, field)
+			case "owningUserID":
+				return ec.fieldContext_Page_owningUserID(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Page", field.Name)
 		},
@@ -599,18 +641,20 @@ func (ec *executionContext) fieldContext_Mutation_updateUser(ctx context.Context
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
+			case "id":
+				return ec.fieldContext_User_id(ctx, field)
 			case "username":
 				return ec.fieldContext_User_username(ctx, field)
 			case "firstName":
 				return ec.fieldContext_User_firstName(ctx, field)
-			case "LastName":
-				return ec.fieldContext_User_LastName(ctx, field)
+			case "lastName":
+				return ec.fieldContext_User_lastName(ctx, field)
 			case "email":
 				return ec.fieldContext_User_email(ctx, field)
 			case "googleID":
 				return ec.fieldContext_User_googleID(ctx, field)
-			case "pages":
-				return ec.fieldContext_User_pages(ctx, field)
+			case "pageURLs":
+				return ec.fieldContext_User_pageURLs(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type User", field.Name)
 		},
@@ -676,8 +720,8 @@ func (ec *executionContext) fieldContext_Mutation_updatePage(ctx context.Context
 				return ec.fieldContext_Page_title(ctx, field)
 			case "links":
 				return ec.fieldContext_Page_links(ctx, field)
-			case "user":
-				return ec.fieldContext_Page_user(ctx, field)
+			case "owningUserID":
+				return ec.fieldContext_Page_owningUserID(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Page", field.Name)
 		},
@@ -690,6 +734,58 @@ func (ec *executionContext) fieldContext_Mutation_updatePage(ctx context.Context
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_updatePage_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deletePage(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_deletePage(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().DeletePage(rctx, fc.Args["URL"].(string))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*bool)
+	fc.Result = res
+	return ec.marshalOBoolean2ᚖbool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_deletePage(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deletePage_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return
 	}
@@ -866,8 +962,8 @@ func (ec *executionContext) fieldContext_Page_links(ctx context.Context, field g
 	return fc, nil
 }
 
-func (ec *executionContext) _Page_user(ctx context.Context, field graphql.CollectedField, obj *model.Page) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Page_user(ctx, field)
+func (ec *executionContext) _Page_owningUserID(ctx context.Context, field graphql.CollectedField, obj *model.Page) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Page_owningUserID(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -880,7 +976,7 @@ func (ec *executionContext) _Page_user(ctx context.Context, field graphql.Collec
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.User, nil
+		return obj.OwningUserID, nil
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -892,19 +988,19 @@ func (ec *executionContext) _Page_user(ctx context.Context, field graphql.Collec
 		}
 		return graphql.Null
 	}
-	res := resTmp.(string)
+	res := resTmp.(primitive.ObjectID)
 	fc.Result = res
-	return ec.marshalNString2string(ctx, field.Selections, res)
+	return ec.marshalNObjectID2goᚗmongodbᚗorgᚋmongoᚑdriverᚋbsonᚋprimitiveᚐObjectID(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_Page_user(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Page_owningUserID(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Page",
 		Field:      field,
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
+			return nil, errors.New("field of type ObjectID does not have child fields")
 		},
 	}
 	return fc, nil
@@ -946,18 +1042,20 @@ func (ec *executionContext) fieldContext_Query_user(ctx context.Context, field g
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
+			case "id":
+				return ec.fieldContext_User_id(ctx, field)
 			case "username":
 				return ec.fieldContext_User_username(ctx, field)
 			case "firstName":
 				return ec.fieldContext_User_firstName(ctx, field)
-			case "LastName":
-				return ec.fieldContext_User_LastName(ctx, field)
+			case "lastName":
+				return ec.fieldContext_User_lastName(ctx, field)
 			case "email":
 				return ec.fieldContext_User_email(ctx, field)
 			case "googleID":
 				return ec.fieldContext_User_googleID(ctx, field)
-			case "pages":
-				return ec.fieldContext_User_pages(ctx, field)
+			case "pageURLs":
+				return ec.fieldContext_User_pageURLs(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type User", field.Name)
 		},
@@ -1020,8 +1118,8 @@ func (ec *executionContext) fieldContext_Query_page(ctx context.Context, field g
 				return ec.fieldContext_Page_title(ctx, field)
 			case "links":
 				return ec.fieldContext_Page_links(ctx, field)
-			case "user":
-				return ec.fieldContext_Page_user(ctx, field)
+			case "owningUserID":
+				return ec.fieldContext_Page_owningUserID(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Page", field.Name)
 		},
@@ -1169,6 +1267,50 @@ func (ec *executionContext) fieldContext_Query___schema(ctx context.Context, fie
 	return fc, nil
 }
 
+func (ec *executionContext) _User_id(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_User_id(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Id, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(primitive.ObjectID)
+	fc.Result = res
+	return ec.marshalNObjectID2goᚗmongodbᚗorgᚋmongoᚑdriverᚋbsonᚋprimitiveᚐObjectID(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_User_id(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "User",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ObjectID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _User_username(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_User_username(ctx, field)
 	if err != nil {
@@ -1251,8 +1393,8 @@ func (ec *executionContext) fieldContext_User_firstName(ctx context.Context, fie
 	return fc, nil
 }
 
-func (ec *executionContext) _User_LastName(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_User_LastName(ctx, field)
+func (ec *executionContext) _User_lastName(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_User_lastName(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -1279,7 +1421,7 @@ func (ec *executionContext) _User_LastName(ctx context.Context, field graphql.Co
 	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_User_LastName(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_User_lastName(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "User",
 		Field:      field,
@@ -1374,8 +1516,8 @@ func (ec *executionContext) fieldContext_User_googleID(ctx context.Context, fiel
 	return fc, nil
 }
 
-func (ec *executionContext) _User_pages(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_User_pages(ctx, field)
+func (ec *executionContext) _User_pageURLs(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_User_pageURLs(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -1388,7 +1530,7 @@ func (ec *executionContext) _User_pages(ctx context.Context, field graphql.Colle
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.User().Pages(rctx, obj)
+		return obj.PageURLs, nil
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -1400,31 +1542,19 @@ func (ec *executionContext) _User_pages(ctx context.Context, field graphql.Colle
 		}
 		return graphql.Null
 	}
-	res := resTmp.([]*model.Page)
+	res := resTmp.([]string)
 	fc.Result = res
-	return ec.marshalNPage2ᚕᚖlinkshare_apiᚋgraphᚋmodelᚐPage(ctx, field.Selections, res)
+	return ec.marshalNString2ᚕstring(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_User_pages(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_User_pageURLs(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "User",
 		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
+		IsMethod:   false,
+		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			switch field.Name {
-			case "URL":
-				return ec.fieldContext_Page_URL(ctx, field)
-			case "description":
-				return ec.fieldContext_Page_description(ctx, field)
-			case "title":
-				return ec.fieldContext_Page_title(ctx, field)
-			case "links":
-				return ec.fieldContext_Page_links(ctx, field)
-			case "user":
-				return ec.fieldContext_Page_user(ctx, field)
-			}
-			return nil, fmt.Errorf("no field named %q was found under type Page", field.Name)
+			return nil, errors.New("field of type String does not have child fields")
 		},
 	}
 	return fc, nil
@@ -3203,37 +3333,6 @@ func (ec *executionContext) fieldContext___Type_specifiedByURL(ctx context.Conte
 
 // region    **************************** input.gotpl *****************************
 
-func (ec *executionContext) unmarshalInputNewPage(ctx context.Context, obj interface{}) (model.NewPage, error) {
-	var it model.NewPage
-	asMap := map[string]interface{}{}
-	for k, v := range obj.(map[string]interface{}) {
-		asMap[k] = v
-	}
-
-	for k, v := range asMap {
-		switch k {
-		case "URL":
-			var err error
-
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("URL"))
-			it.URL, err = ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-		case "user":
-			var err error
-
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("user"))
-			it.User, err = ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-		}
-	}
-
-	return it, nil
-}
-
 func (ec *executionContext) unmarshalInputupdatePage(ctx context.Context, obj interface{}) (model.UpdatePage, error) {
 	var it model.UpdatePage
 	asMap := map[string]interface{}{}
@@ -3282,6 +3381,14 @@ func (ec *executionContext) unmarshalInputupdateUser(ctx context.Context, obj in
 
 	for k, v := range asMap {
 		switch k {
+		case "userID":
+			var err error
+
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("userID"))
+			it.UserID, err = ec.unmarshalNObjectID2goᚗmongodbᚗorgᚋmongoᚑdriverᚋbsonᚋprimitiveᚐObjectID(ctx, v)
+			if err != nil {
+				return it, err
+			}
 		case "username":
 			var err error
 
@@ -3371,6 +3478,12 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				invalids++
 			}
+		case "deletePage":
+
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deletePage(ctx, field)
+			})
+
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -3414,9 +3527,9 @@ func (ec *executionContext) _Page(ctx context.Context, sel ast.SelectionSet, obj
 			if out.Values[i] == graphql.Null {
 				invalids++
 			}
-		case "user":
+		case "owningUserID":
 
-			out.Values[i] = ec._Page_user(ctx, field, obj)
+			out.Values[i] = ec._Page_owningUserID(ctx, field, obj)
 
 			if out.Values[i] == graphql.Null {
 				invalids++
@@ -3524,6 +3637,13 @@ func (ec *executionContext) _User(ctx context.Context, sel ast.SelectionSet, obj
 		switch field.Name {
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("User")
+		case "id":
+
+			out.Values[i] = ec._User_id(ctx, field, obj)
+
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
 		case "username":
 
 			out.Values[i] = ec._User_username(ctx, field, obj)
@@ -3532,9 +3652,9 @@ func (ec *executionContext) _User(ctx context.Context, sel ast.SelectionSet, obj
 
 			out.Values[i] = ec._User_firstName(ctx, field, obj)
 
-		case "LastName":
+		case "lastName":
 
-			out.Values[i] = ec._User_LastName(ctx, field, obj)
+			out.Values[i] = ec._User_lastName(ctx, field, obj)
 
 		case "email":
 
@@ -3544,26 +3664,13 @@ func (ec *executionContext) _User(ctx context.Context, sel ast.SelectionSet, obj
 
 			out.Values[i] = ec._User_googleID(ctx, field, obj)
 
-		case "pages":
-			field := field
+		case "pageURLs":
 
-			innerFunc := func(ctx context.Context) (res graphql.Marshaler) {
-				defer func() {
-					if r := recover(); r != nil {
-						ec.Error(ctx, ec.Recover(ctx, r))
-					}
-				}()
-				res = ec._User_pages(ctx, field, obj)
-				if res == graphql.Null {
-					atomic.AddUint32(&invalids, 1)
-				}
-				return res
+			out.Values[i] = ec._User_pageURLs(ctx, field, obj)
+
+			if out.Values[i] == graphql.Null {
+				invalids++
 			}
-
-			out.Concurrently(i, func() graphql.Marshaler {
-				return innerFunc(ctx)
-
-			})
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -3908,51 +4015,23 @@ func (ec *executionContext) marshalNBoolean2bool(ctx context.Context, sel ast.Se
 	return res
 }
 
-func (ec *executionContext) unmarshalNNewPage2linkshare_apiᚋgraphᚋmodelᚐNewPage(ctx context.Context, v interface{}) (model.NewPage, error) {
-	res, err := ec.unmarshalInputNewPage(ctx, v)
+func (ec *executionContext) unmarshalNObjectID2goᚗmongodbᚗorgᚋmongoᚑdriverᚋbsonᚋprimitiveᚐObjectID(ctx context.Context, v interface{}) (primitive.ObjectID, error) {
+	res, err := utils.UnmarshalObjectID(v)
 	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNObjectID2goᚗmongodbᚗorgᚋmongoᚑdriverᚋbsonᚋprimitiveᚐObjectID(ctx context.Context, sel ast.SelectionSet, v primitive.ObjectID) graphql.Marshaler {
+	res := utils.MarshalObjectID(v)
+	if res == graphql.Null {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+	}
+	return res
 }
 
 func (ec *executionContext) marshalNPage2linkshare_apiᚋgraphᚋmodelᚐPage(ctx context.Context, sel ast.SelectionSet, v model.Page) graphql.Marshaler {
 	return ec._Page(ctx, sel, &v)
-}
-
-func (ec *executionContext) marshalNPage2ᚕᚖlinkshare_apiᚋgraphᚋmodelᚐPage(ctx context.Context, sel ast.SelectionSet, v []*model.Page) graphql.Marshaler {
-	ret := make(graphql.Array, len(v))
-	var wg sync.WaitGroup
-	isLen1 := len(v) == 1
-	if !isLen1 {
-		wg.Add(len(v))
-	}
-	for i := range v {
-		i := i
-		fc := &graphql.FieldContext{
-			Index:  &i,
-			Result: &v[i],
-		}
-		ctx := graphql.WithFieldContext(ctx, fc)
-		f := func(i int) {
-			defer func() {
-				if r := recover(); r != nil {
-					ec.Error(ctx, ec.Recover(ctx, r))
-					ret = nil
-				}
-			}()
-			if !isLen1 {
-				defer wg.Done()
-			}
-			ret[i] = ec.marshalOPage2ᚖlinkshare_apiᚋgraphᚋmodelᚐPage(ctx, sel, v[i])
-		}
-		if isLen1 {
-			f(i)
-		} else {
-			go f(i)
-		}
-
-	}
-	wg.Wait()
-
-	return ret
 }
 
 func (ec *executionContext) marshalNPage2ᚖlinkshare_apiᚋgraphᚋmodelᚐPage(ctx context.Context, sel ast.SelectionSet, v *model.Page) graphql.Marshaler {
@@ -3978,6 +4057,32 @@ func (ec *executionContext) marshalNString2string(ctx context.Context, sel ast.S
 		}
 	}
 	return res
+}
+
+func (ec *executionContext) unmarshalNString2ᚕstring(ctx context.Context, v interface{}) ([]string, error) {
+	var vSlice []interface{}
+	if v != nil {
+		vSlice = graphql.CoerceList(v)
+	}
+	var err error
+	res := make([]string, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalOString2string(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) marshalNString2ᚕstring(ctx context.Context, sel ast.SelectionSet, v []string) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	for i := range v {
+		ret[i] = ec.marshalOString2string(ctx, sel, v[i])
+	}
+
+	return ret
 }
 
 func (ec *executionContext) unmarshalNString2ᚕᚖstring(ctx context.Context, v interface{}) ([]*string, error) {
@@ -4314,6 +4419,16 @@ func (ec *executionContext) marshalOPage2ᚖlinkshare_apiᚋgraphᚋmodelᚐPage
 		return graphql.Null
 	}
 	return ec._Page(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalOString2string(ctx context.Context, v interface{}) (string, error) {
+	res, err := graphql.UnmarshalString(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOString2string(ctx context.Context, sel ast.SelectionSet, v string) graphql.Marshaler {
+	res := graphql.MarshalString(v)
+	return res
 }
 
 func (ec *executionContext) unmarshalOString2ᚖstring(ctx context.Context, v interface{}) (*string, error) {

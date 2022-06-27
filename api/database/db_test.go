@@ -3,7 +3,6 @@ package database
 import (
 	"context"
 	"errors"
-	"linkshare_api/utils"
 	"log"
 	"math/rand"
 	"strings"
@@ -12,6 +11,7 @@ import (
 
 	"github.com/joho/godotenv"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/mongo/readpref"
@@ -51,13 +51,13 @@ func TestCreatePage(t *testing.T) {
 	}
 	for i := 0; i < runs; i++ {
 		start := time.Now()
-		page, err := linksDB.CreatePage(context.TODO(), "", utils.GetRandomURL(6), linksDB.Pages.InsertOne)
-		pageURL := page.URL
+		page, err := linksDB.CreatePage(context.TODO(), "", primitive.NewObjectID(), linksDB.Pages.InsertOne)
 		elapsed := time.Since(start)
 		total += elapsed
 		if err != nil {
 			t.Fatalf("failed to create a new page: \n%s", err)
 		}
+		pageURL := page.URL
 		if pageURLs[pageURL] {
 			t.Fatalf("pageURL is not unique")
 		}
@@ -74,14 +74,14 @@ func TestCreatePageNameTaken(t *testing.T) {
 	}
 	test_URL := "my_page"
 	linksDB.Pages.DeleteOne(context.TODO(), bson.M{"_id": test_URL})
-	page, err := linksDB.CreatePage(context.TODO(), test_URL, utils.GetRandomURL(6), linksDB.Pages.InsertOne)
+	page, err := linksDB.CreatePage(context.TODO(), test_URL, primitive.NewObjectID(), linksDB.Pages.InsertOne)
 	if page.URL != test_URL {
 		t.Fatal("created URL not same as input URL")
 	}
 	if err != nil {
 		t.Fatalf("failed to create %s", test_URL)
 	}
-	_, err = linksDB.CreatePage(context.TODO(), test_URL, utils.GetRandomURL(6), linksDB.Pages.InsertOne)
+	_, err = linksDB.CreatePage(context.TODO(), test_URL, primitive.NewObjectID(), linksDB.Pages.InsertOne)
 	_, isURLTakenError := err.(URLTakenError)
 	if !isURLTakenError {
 		t.Fatalf("expected URLTakenError, got: %s", err)
@@ -100,7 +100,7 @@ func TestPageCreationLottery(t *testing.T) {
 		missCount++
 		return nil, errors.New("E11000 duplicate key error")
 	}
-	_, err = linksDB.CreatePage(context.TODO(), "", utils.GetRandomURL(6), insertMock)
+	_, err = linksDB.CreatePage(context.TODO(), "", primitive.NewObjectID(), insertMock)
 
 	if missCount != 3 {
 		t.Errorf("expected missCount to be 3, got: %d", missCount)

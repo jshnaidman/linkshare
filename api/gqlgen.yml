@@ -65,3 +65,5 @@ models:
     fields:
       Pages:
         resolver: true
+  ObjectID:
+    model: linkshare_api/utils.ObjectID

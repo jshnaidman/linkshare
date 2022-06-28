@@ -17,6 +17,8 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/readpref"
 )
 
+// TODO: cleanup changes to DB after running tests
+
 func init() {
 	err := godotenv.Load("../../.env", "../../.secrets")
 	if err != nil {

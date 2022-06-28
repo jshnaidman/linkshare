@@ -9,8 +9,8 @@ import (
 )
 
 type Session struct {
-	Id       string
-	UserId   primitive.ObjectID
+	ID       string             `bson:"_id,omitempty"`
+	UserID   primitive.ObjectID `bson:"user_id"`
 	Modified primitive.DateTime
 	Schema   int
 }
@@ -26,8 +26,9 @@ func GetNewSessionID() string {
 
 func NewSessionForUser(userId primitive.ObjectID) *Session {
 	return &Session{
-		Id:       GetNewSessionID(),
-		UserId:   userId,
+		ID:       GetNewSessionID(),
+		UserID:   userId,
 		Modified: utils.DateTimeNow(),
+		Schema:   1,
 	}
 }

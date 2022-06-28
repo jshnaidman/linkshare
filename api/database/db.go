@@ -137,14 +137,20 @@ func (linksDB *LinkShareDB) CreatePage(ctx context.Context, URL string, userID p
 func (linksDB *LinkShareDB) UpsertUserByGoogleID(ctx context.Context, user *model.User,
 	findOneUserAndUpdate FindOneAndUpdateFunc) (updatedUser *model.User, err error) {
 
-	updateOption := options.FindOneAndUpdate().SetUpsert(true)
+	updateOption := options.FindOneAndUpdate().SetUpsert(true).SetReturnDocument(options.After)
 
 	updateData := bson.M{"$set": *user}
 
 	filter := bson.M{"google_id": user.GoogleID}
 
+	updatedUser = &model.User{}
+
 	// updated user will have Id
 	err = findOneUserAndUpdate(context.TODO(), filter, updateData, updateOption).Decode(updatedUser)
+
+	if err == mongo.ErrNoDocuments {
+		err = nil
+	}
 
 	return updatedUser, err
 }
@@ -156,8 +162,7 @@ func (linksDB *LinkShareDB) UpsertUserByGoogleID(ctx context.Context, user *mode
 func (linksDB *LinkShareDB) CreateSession(ctx context.Context, session *contextual.Session,
 	insertOne InsertOneFunc) (err error) {
 
-	insertData := bson.M{"$set": *session}
-	_, err = insertOne(ctx, insertData)
+	_, err = insertOne(ctx, *session)
 
 	return
 }

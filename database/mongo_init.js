@@ -50,6 +50,10 @@ db.createCollection('users', {
         $jsonSchema: {
             required: ["schema"],
             properties: {
+                _id: {
+                    bsonType: "objectId",
+                    description: "user ID"
+                },
                 username: {
                     bsonType: "string",
                     description: "Username. Can change, so can't be _id"
@@ -71,7 +75,7 @@ db.createCollection('users', {
                 pages: {
                     bsonType: "array",
                     items: {
-                        bsonType: "int",
+                        bsonType: "string",
                         description: "The pages owned by the user."
                     },
                     maxItems: 200,
@@ -91,7 +95,7 @@ db.users.createIndex({ username: 1 }, { unique: true })
 db.createCollection('sessions', {
     validator: {
         $jsonSchema: {
-            required: ["schema"],
+            required: ["schema", "user_id"],
             properties: {
                 _id: {
                     bsonType: "string",

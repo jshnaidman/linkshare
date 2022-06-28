@@ -1,5 +1,4 @@
 FROM mongo:5.0.9
-
 USER mongodb
 WORKDIR /docker-entrypoint-initdb.d
 RUN echo "alias ll='ls -l --color=auto'" >> ~/.bashrc

@@ -20,7 +20,7 @@ func LogInfo(msg string, sprintfArgs ...any) {
 	log_file_logger := log.New(f, timestamp+" ", 0)
 	log_file_logger.Printf("INFO: %s\n", fmt.Sprintf(msg, sprintfArgs...))
 	std_out_logger := log.New(os.Stdout, timestamp+" ", 0)
-	std_out_logger.Printf("%s\n", msg)
+	std_out_logger.Printf("%s\n", fmt.Sprintf(msg, sprintfArgs...))
 }
 
 func LogDebug(msg string, sprintfArgs ...any) {
@@ -39,7 +39,7 @@ func LogDebug(msg string, sprintfArgs ...any) {
 	log_file_logger := log.New(f, timestamp+" ", 0)
 	log_file_logger.Printf("WARNING: %s\n", fmt.Sprintf(msg, sprintfArgs...))
 	std_out_logger := log.New(os.Stdout, timestamp+" ", 0)
-	std_out_logger.Printf("%s\n", msg)
+	std_out_logger.Printf("%s\n", fmt.Sprintf(msg, sprintfArgs...))
 }
 
 func LogError(msg string, sprintfArgs ...any) {
@@ -55,5 +55,5 @@ func LogError(msg string, sprintfArgs ...any) {
 	log_file_logger := log.New(f, timestamp+" ", 0)
 	log_file_logger.Printf("ERROR: %s\n", fmt.Sprintf(msg, sprintfArgs...))
 	std_err_logger := log.New(os.Stderr, timestamp+" ", 0)
-	std_err_logger.Printf("%s\n", msg)
+	std_err_logger.Printf("%s\n", fmt.Sprintf(msg, sprintfArgs...))
 }

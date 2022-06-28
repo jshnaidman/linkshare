@@ -160,7 +160,7 @@ func handleJWTLogin(w http.ResponseWriter, r *http.Request, loginValidation logi
 		utils.LogError("loginJWTHandler - Failed to create session: %s", err)
 		return
 	}
-	http.SetCookie(w, NewSessionCookie(session.Id, session.Modified.Time()))
+	http.SetCookie(w, NewSessionCookie(session.ID, session.Modified.Time()))
 	http.Redirect(w, r, loginRedirect, http.StatusSeeOther)
 }
 

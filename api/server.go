@@ -37,7 +37,7 @@ func main() {
 		Debug:            conf.DebugMode,
 	}).Handler
 
-	router.Use(corsMiddleware)
+	router.Use(corsMiddleware, auth.AuthMiddleware())
 
 	// router.Use(auth.Middleware())
 

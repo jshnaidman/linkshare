@@ -1,6 +1,14 @@
 package model
 
-import "go.mongodb.org/mongo-driver/bson/primitive"
+import (
+	"context"
+	"linkshare_api/utils"
+
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+)
 
 type User struct {
 	ID        primitive.ObjectID `json:"id" bson:"_id,omitempty"`
@@ -11,4 +19,30 @@ type User struct {
 	GoogleID  *string            `json:"googleID" bson:"google_id,omitempty"`
 	PageURLs  []string           `json:"pageURLs" bson:"pages"`
 	Schema    int                `json:"-" bson:"schema"` // omitted from graphql
+}
+
+func (user *User) UpsertUserByGoogleID(ctx context.Context,
+	findOneUserAndUpdate utils.FindOneAndUpdateFunc) (updatedUser *User, err error) {
+
+	updateOption := options.FindOneAndUpdate().SetUpsert(true).SetReturnDocument(options.After)
+
+	updateData := bson.M{"$set": *user}
+
+	filter := bson.M{"google_id": user.GoogleID}
+
+	updatedUser = &User{}
+
+	// updated user will have Id
+	err = findOneUserAndUpdate(context.TODO(), filter, updateData, updateOption).Decode(updatedUser)
+
+	if err == mongo.ErrNoDocuments {
+		err = nil
+	}
+
+	return updatedUser, err
+}
+
+func (user *User) Update(ctx context.Context, updateByID utils.UpdateByIDFunc) (err error) {
+	_, err = updateByID(ctx, user.ID, bson.M{"$set": *user})
+	return
 }

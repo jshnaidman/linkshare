@@ -30,8 +30,8 @@ func DateTimeNow() primitive.DateTime {
 	return primitive.NewDateTimeFromTime(time.Now())
 }
 
+// generate a random n character string
 func GetRandomURL(n int) string {
-	// generate a random 6 character string
 	sb := strings.Builder{}
 	sb.Grow(n)
 	for i := 0; i < n; i++ {

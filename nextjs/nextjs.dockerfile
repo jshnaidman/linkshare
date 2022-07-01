@@ -4,16 +4,13 @@ FROM node:18-alpine as test-target
 RUN apk add --no-cache libc6-compat
 WORKDIR /usr/src/app
 RUN addgroup -S nextGroup && adduser -S nextjs -G nextGroup
-RUN chown -R nextjs: /usr/src/app 
 ENV NODE_ENV=development
 ENV PATH $PATH:/usr/src/app/node_modules/.bin
 
-COPY package.json yarn.lock ./
+COPY --chown=nextjs:nextGroup package.json yarn.lock ./
 RUN yarn install --frozen-lockfile
 
-COPY . .
-
-RUN chown -R nextjs: /usr/src/app 
+COPY --chown=nextjs:nextGroup . .
 
 # Build
 FROM test-target as build-target
@@ -22,8 +19,6 @@ RUN yarn build
 
 # Reduce installed packages to production-only.
 RUN yarn install --production
-
-RUN chown -R nextjs: /usr/src/app 
 
 # Archive
 FROM node:18-alpine as production-target
@@ -34,8 +29,8 @@ ENV PATH $PATH:/usr/src/app/node_modules/.bin
 WORKDIR /usr/src/app
 
 # # Include only the release build and production packages.
-COPY --from=build-target /usr/src/app/node_modules node_modules
-COPY --from=build-target /usr/src/app/.next .next
+COPY --chown=nextjs:nextGroup --from=build-target /usr/src/app/node_modules node_modules
+COPY --chown=nextjs:nextGroup --from=build-target /usr/src/app/.next .next
 
 EXPOSE 3000
 

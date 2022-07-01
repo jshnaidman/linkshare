@@ -69,7 +69,6 @@ func TestCreatePage(t *testing.T) {
 }
 
 func TestCreatePageNameTaken(t *testing.T) {
-
 	linksDB, err := NewLinkShareDB(context.TODO())
 	if err != nil {
 		t.Fatal(err)
@@ -111,3 +110,7 @@ func TestPageCreationLottery(t *testing.T) {
 		t.Errorf("expected lottery message! Got: %s", err)
 	}
 }
+
+// uncomment this and run it to add users and sessions to DB for manual testing
+
+// db.sessions.aggregate([{$match: {_id: 'abc'}}, {$lookup: {from: "users", localField: "user_id", foreignField:"_id", as: "user"}}, {$unwind: "$user"}, {$replaceRoot: {newRoot: "$user"}}])

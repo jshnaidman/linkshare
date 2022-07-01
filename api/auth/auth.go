@@ -40,7 +40,7 @@ func ValidateGoogleJWT(ctx context.Context, JWT string) (payload *idtoken.Payloa
 
 func NewSessionCookie(sessionID string, expires time.Time) *http.Cookie {
 	return &http.Cookie{
-		Name:     contextual.Session_cookie_key,
+		Name:     database.Session_cookie_key,
 		Value:    sessionID,
 		MaxAge:   utils.GetConf().SessionLifetimeSeconds,
 		HttpOnly: true,
@@ -49,34 +49,60 @@ func NewSessionCookie(sessionID string, expires time.Time) *http.Cookie {
 	}
 }
 
-// // Middleware decodes the share session cookie and packs the session into context
-// func AuthMiddleware() utils.Middleware {
-// 	return func(next http.Handler) http.Handler {
-// 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-// 			// Allow unauthenticated users in
-// 			if err != nil || c == nil {
-// 				next.ServeHTTP(w, r)
-// 				return
-// 			}
+// Middleware decodes the share session cookie and packs the session into context
+func AuthMiddleware() utils.Middleware {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			db, err := database.NewLinkShareDB(r.Context())
+			defer db.Disconnect(r.Context())
+			if err != nil {
+				utils.LogError("AuthMiddleware - Failed to retrieve db: %s", err)
+				// database is down so just return 500
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
 
-// 			userId, err := validateAndGetUserID(c)
-// 			if err != nil {
-// 				http.Error(w, "Invalid cookie", http.StatusForbidden)
-// 				return
-// 			}
+			sessionIDCookie, err := r.Cookie(database.Session_cookie_key)
 
-// 			// get the user from the database
-// 			user := getUserByID(db, userId)
+			// No session, create one and allow unauthenticated users in
+			if err != nil || sessionIDCookie == nil || len(sessionIDCookie.Value) == 0 {
+				session := database.NewSession()
+				err = session.Persist(r.Context(), db.Sessions.InsertOne)
+				if err != nil {
+					utils.LogError("AuthMiddleware - Failed to create session: %s", err)
+				}
+				next.ServeHTTP(w, r)
+				return
+			}
 
-// 			// put it in context
-// 			ctx := context.WithValue(r.Context(), userCtxKey, user)
+			session, err := database.FindSessionFromID(r.Context(), sessionIDCookie.Value, db.Sessions.FindOne)
+			if err != nil || session == nil {
+				// failed to find session for this cookie, delete it and continue unauthenticated
+				sessionIDCookie.MaxAge = -1
+				http.SetCookie(w, sessionIDCookie)
+				next.ServeHTTP(w, r)
+				return
+			}
 
-// 			// and call the next with our new context
-// 			r = r.WithContext(ctx)
-// 			next.ServeHTTP(w, r)
-// 		})
-// 	}
-// }
+			// get the user from the database
+			user := &model.User{
+				ID: session.UserID,
+			}
+			err = user.Update(r.Context(), db.Users.UpdateByID)
+			if err != nil {
+				// session exists but no user, continue unauthenticated.
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			// put it in context
+			ctx := contextual.AddUserToContext(r.Context(), user)
+			// and call the next with our new context
+			r = r.WithContext(ctx)
+			next.ServeHTTP(w, r)
+		})
+	}
+}
 
 var bearerTokenRegex *regexp.Regexp = regexp.MustCompile(`Bearer ([a-zA-Z0-9\-_]+)$`)
 
@@ -111,12 +137,13 @@ func GoogleLoginHandleFunc(w http.ResponseWriter, r *http.Request) {
 	handleJWTLogin(w, r, validateGoogleLogin)
 }
 
-func handleJWTLogin(w http.ResponseWriter, r *http.Request, loginValidation loginValidationMethod) {
+// Receives JWT in auth header and creates authenticated session. Returns session object if successful
+func handleJWTLogin(w http.ResponseWriter, r *http.Request, loginValidation loginValidationMethod) *database.Session {
 	// If the user is logged in and tries to access the login api, then we just redirect to the homepage.
 	user := contextual.UserForContext(r.Context())
 	if user != nil {
 		http.Redirect(w, r, loginRedirect, http.StatusFound)
-		return
+		return nil
 	}
 
 	// grab the bearer token from the Authorization header
@@ -124,7 +151,7 @@ func handleJWTLogin(w http.ResponseWriter, r *http.Request, loginValidation logi
 	if authHeader == "" {
 		utils.LogDebug("No auth header in login request")
 		w.WriteHeader(http.StatusBadRequest)
-		return
+		return nil
 	}
 	regMatch := bearerTokenRegex.FindStringSubmatch(authHeader)
 	var bearerToken string
@@ -142,7 +169,7 @@ func handleJWTLogin(w http.ResponseWriter, r *http.Request, loginValidation logi
 	if err != nil {
 		utils.LogError("loginJWTHandler - Failed to retrieve db: %s", err)
 		w.WriteHeader(http.StatusInternalServerError)
-		return
+		return nil
 	}
 
 	user, err = loginValidation(bearerToken, db, w, r)
@@ -150,18 +177,25 @@ func handleJWTLogin(w http.ResponseWriter, r *http.Request, loginValidation logi
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		utils.LogError("loginJWTHandler - Failed to update user: %s\n%#v", err, user)
-		return
+		return nil
 	}
 
-	session := contextual.NewSessionForUser(user.ID)
-	err = db.CreateSession(r.Context(), session, db.Sessions.InsertOne)
+	// get session from context
+	session := contextual.SessionForContext(r.Context())
+	if session == nil {
+		// if there is no session because there was some kind of error creating session we create one
+		session = database.NewSession()
+		session.UserID = user.ID
+	}
+	err = session.Persist(r.Context(), db.Sessions.InsertOne)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		utils.LogError("loginJWTHandler - Failed to create session: %s", err)
-		return
+		return nil
 	}
 	http.SetCookie(w, NewSessionCookie(session.ID, session.Modified.Time()))
 	http.Redirect(w, r, loginRedirect, http.StatusSeeOther)
+	return session
 }
 
 func validateGoogleLogin(bearerToken string, db *database.LinkShareDB, w http.ResponseWriter, r *http.Request) (user *model.User, err error) {
@@ -187,6 +221,6 @@ func validateGoogleLogin(bearerToken string, db *database.LinkShareDB, w http.Re
 		Schema:    utils.GetConf().SchemaVersion,
 	}
 
-	user, err = db.UpsertUserByGoogleID(r.Context(), user, db.Users.FindOneAndUpdate)
+	user, err = user.UpsertUserByGoogleID(r.Context(), db.Users.FindOneAndUpdate)
 	return
 }

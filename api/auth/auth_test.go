@@ -2,7 +2,6 @@ package auth
 
 import (
 	"context"
-	"linkshare_api/contextual"
 	"linkshare_api/database"
 	"linkshare_api/graph/model"
 	"log"
@@ -54,16 +53,16 @@ func cleanupTestUser(t *testing.T) func() {
 	}
 }
 
-// func cleanupTestSession(t *testing.T, session *contextual.Session) func() {
+// func cleanupSession(t *testing.T) func() {
 // 	return func() {
 // 		db, err := database.NewLinkShareDB(context.TODO())
 // 		if err != nil {
 // 			t.Fatal()
 // 		}
 // 		defer db.Disconnect(context.TODO())
-// 		_, err = db.Sessions.DeleteOne(context.TODO(), bson.M{"_id": session.ID})
+// 		_, err = db.Sessions.DeleteOne(context.TODO(), bson.M{"email": testUser.Email})
 // 		if err != nil {
-// 			t.Fatalf("failed to cleanup session: %s", err)
+// 			t.Fatalf("failed to cleanup testuser: %s", err)
 // 		}
 // 	}
 // }
@@ -74,9 +73,12 @@ func upsertTestUserByGoogleID(t *testing.T) (*model.User, error) {
 		t.Fatal()
 	}
 	defer db.Disconnect(context.TODO())
-	return db.UpsertUserByGoogleID(context.TODO(), testUser, db.Users.FindOneAndUpdate)
+	return testUser.UpsertUserByGoogleID(context.TODO(), db.Users.FindOneAndUpdate)
 }
 
+// This function cleans itself up, but in the future I won't bother cleaning up because it's too easy to just
+// spin up a new docker container every time.
+// If I need to clean the db I can do it before a particular test runs which needs it cleaned.
 func TestHandleJWTLogin(t *testing.T) {
 	db, err := database.NewLinkShareDB(context.TODO())
 	if err != nil {
@@ -86,12 +88,13 @@ func TestHandleJWTLogin(t *testing.T) {
 	respWriter := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "/", nil)
 	req.Header.Set("Authorization", "Bearer ASDASDASDA")
-	handleJWTLogin(respWriter, req, func(bearerToken string, db *database.LinkShareDB, w http.ResponseWriter,
+	session := handleJWTLogin(respWriter, req, func(bearerToken string, db *database.LinkShareDB, w http.ResponseWriter,
 		r *http.Request) (user *model.User, err error) {
 		user, err = upsertTestUserByGoogleID(t)
 		t.Cleanup(cleanupTestUser(t))
 		return
 	})
+	defer session.Delete(context.TODO(), db.Sessions.DeleteOne)
 
 	res := respWriter.Result()
 
@@ -101,7 +104,7 @@ func TestHandleJWTLogin(t *testing.T) {
 
 	sessionID := ""
 	for _, cookie := range res.Cookies() {
-		if cookie.Name == contextual.Session_cookie_key {
+		if cookie.Name == database.Session_cookie_key {
 			sessionID = cookie.Value
 		}
 	}
@@ -109,10 +112,9 @@ func TestHandleJWTLogin(t *testing.T) {
 		t.Errorf("Cookie not found in response")
 	}
 
-	session := &contextual.Session{}
-	err = db.Sessions.FindOneAndDelete(context.TODO(), bson.M{"_id": sessionID}).Decode(session)
+	err = db.Sessions.FindOne(context.TODO(), bson.M{"_id": sessionID}).Decode(session)
 	if (err != nil) || (session == nil) {
-		t.Errorf("Finding / deleting session error: %s", err)
+		t.Errorf("Finding session error: %s", err)
 	}
 	user := &model.User{}
 	err = db.Users.FindOne(context.TODO(), bson.M{"_id": session.UserID}).Decode(user)
@@ -127,5 +129,4 @@ func TestHandleJWTLogin(t *testing.T) {
 	if !time.Now().After(session.Modified.Time()) {
 		t.Errorf("Modified time doesn't make sense")
 	}
-
 }

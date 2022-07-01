@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"linkshare_api/contextual"
 	"linkshare_api/graph/model"
 	"linkshare_api/utils"
 	"strings"
@@ -35,11 +34,6 @@ type LinkShareDB struct {
 	Sessions *mongo.Collection
 }
 
-type InsertOneFunc func(ctx context.Context, document interface{},
-	opts ...*options.InsertOneOptions) (*mongo.InsertOneResult, error)
-type FindOneAndUpdateFunc func(ctx context.Context, filter interface{},
-	update interface{}, opts ...*options.FindOneAndUpdateOptions) *mongo.SingleResult
-
 func NewLinkShareDB(ctx context.Context) (linksDB *LinkShareDB, err error) {
 	linksDB = new(LinkShareDB)
 	client, err := GetClient(ctx)
@@ -61,6 +55,7 @@ func NewLinkShareDB(ctx context.Context) (linksDB *LinkShareDB, err error) {
 
 	return
 }
+
 func (linksDB *LinkShareDB) Disconnect(ctx context.Context) {
 	linksDB.Client.Disconnect(ctx)
 }
@@ -79,7 +74,7 @@ func GetDatabase(client *mongo.Client) (database *mongo.Database, err error) {
 // This func doesn't validate if page is valid base64 encoding
 // TODO: Need to add created pageID to owning user
 func (linksDB *LinkShareDB) CreatePage(ctx context.Context, URL string, userID primitive.ObjectID,
-	insertOnePage InsertOneFunc) (createdPage *model.Page, err error) {
+	insertOnePage utils.InsertOneFunc) (createdPage *model.Page, err error) {
 	createdURL := ""
 	// If the user did not input a custom URL, create a random one
 	isCustomURL := len(URL) != 0
@@ -134,35 +129,53 @@ func (linksDB *LinkShareDB) CreatePage(ctx context.Context, URL string, userID p
 	return
 }
 
-func (linksDB *LinkShareDB) UpsertUserByGoogleID(ctx context.Context, user *model.User,
-	findOneUserAndUpdate FindOneAndUpdateFunc) (updatedUser *model.User, err error) {
+// db.sessions.aggregate([{$match: {_id: 'VDMYBF72TWDR6SONKKX4M2FCAHEZT57QYELW22UUKQR7FD45H2SQ'}}, {$lookup: {from: "users", localField: "user_id", foreignField:"_id", as: "user"}}, {$unwind: "$user"}, {$replaceRoot: {newRoot: "$user"}}]).explain()
+// db.sessions.aggregate([  {$replaceRoot: {newRoot: "$user"}}]).explain()
+func FindUserForSession(ctx context.Context, sessionID string, sessionAggregate utils.AggregateFunc) (user *model.User, err error) {
 
-	updateOption := options.FindOneAndUpdate().SetUpsert(true).SetReturnDocument(options.After)
+	user = &model.User{}
 
-	updateData := bson.M{"$set": *user}
-
-	filter := bson.M{"google_id": user.GoogleID}
-
-	updatedUser = &model.User{}
-
-	// updated user will have Id
-	err = findOneUserAndUpdate(context.TODO(), filter, updateData, updateOption).Decode(updatedUser)
-
-	if err == mongo.ErrNoDocuments {
-		err = nil
+	pipeline := mongo.Pipeline{
+		bson.D{{Key: "$match", Value: bson.D{{
+			Key: "_id", Value: sessionID}},
+		}},
+		bson.D{{Key: "$lookup", Value: bson.D{
+			{Key: "from", Value: "users"}, {Key: "localField", Value: "user_id"}, {Key: "foreignField", Value: "_id"}, {Key: "as", Value: "user"},
+		}}},
+		bson.D{{Key: "$unwind", Value: "$user"}},
+		bson.D{{Key: "$replaceRoot", Value: bson.D{
+			{Key: "newRoot", Value: "$user"},
+		},
+		}},
 	}
 
-	return updatedUser, err
-}
+	cursor, err := sessionAggregate(ctx, pipeline)
+	if err != nil {
+		return
+	}
 
-// func (linksDB *LinkShareDB) FindUser(user *model.User) {
-
-// }
-
-func (linksDB *LinkShareDB) CreateSession(ctx context.Context, session *contextual.Session,
-	insertOne InsertOneFunc) (err error) {
-
-	_, err = insertOne(ctx, *session)
-
+	var results []model.User
+	if err = cursor.All(context.TODO(), &results); err != nil {
+		utils.LogError("findUserForSession - %s", err)
+		return nil, err
+	}
+	if len(results) > 1 {
+		err = fmt.Errorf("got multiple users for session key: %v", results)
+	}
+	if len(results) == 1 {
+		user = &results[0]
+	}
 	return
 }
+
+// func (linksDB *LinkShareDB) FindUserFromSession(ctx context.Context, sessionID string,
+// 	aggregationFunc AggregateFunc) (user *model.User, err error) {
+// 	user = &model.User{}
+
+// 	pipeline := mongo.Pipeline{
+// 		bson.D{{Key: "$match", Value: bson.D{{Key: "_id", Value: 1}}}},
+// 	}
+
+// 	// err = findOneSession(ctx, bson.M{"_id": sessionID}).Decode(session)
+// 	return
+// }

@@ -90,7 +90,11 @@ db.createCollection('users', {
 })
 
 // usernames queried often
-db.users.createIndex({ username: 1 }, { unique: true })
+db.users.createIndex({ username: 1 }, {
+    unique: true, partialFilterExpression: {
+        username: { $type: "string" }
+    }
+})
 
 db.createCollection('sessions', {
     validator: {

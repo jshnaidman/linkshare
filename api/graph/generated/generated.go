@@ -46,7 +46,7 @@ type DirectiveRoot struct {
 
 type ComplexityRoot struct {
 	Mutation struct {
-		CreatePage func(childComplexity int, url string, userID primitive.ObjectID) int
+		CreatePage func(childComplexity int, url string) int
 		DeletePage func(childComplexity int, url string) int
 		UpdatePage func(childComplexity int, input model.UpdatePage) int
 		UpdateUser func(childComplexity int, input model.UpdateUser) int
@@ -69,7 +69,7 @@ type ComplexityRoot struct {
 		Email     func(childComplexity int) int
 		FirstName func(childComplexity int) int
 		GoogleID  func(childComplexity int) int
-		Id        func(childComplexity int) int
+		ID        func(childComplexity int) int
 		LastName  func(childComplexity int) int
 		PageURLs  func(childComplexity int) int
 		Username  func(childComplexity int) int
@@ -77,7 +77,7 @@ type ComplexityRoot struct {
 }
 
 type MutationResolver interface {
-	CreatePage(ctx context.Context, url string, userID primitive.ObjectID) (*model.Page, error)
+	CreatePage(ctx context.Context, url string) (*model.Page, error)
 	UpdateUser(ctx context.Context, input model.UpdateUser) (*model.User, error)
 	UpdatePage(ctx context.Context, input model.UpdatePage) (*model.Page, error)
 	DeletePage(ctx context.Context, url string) (*bool, error)
@@ -112,7 +112,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Mutation.CreatePage(childComplexity, args["URL"].(string), args["userID"].(primitive.ObjectID)), true
+		return e.complexity.Mutation.CreatePage(childComplexity, args["URL"].(string)), true
 
 	case "Mutation.deletePage":
 		if e.complexity.Mutation.DeletePage == nil {
@@ -231,11 +231,11 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		return e.complexity.User.GoogleID(childComplexity), true
 
 	case "User.id":
-		if e.complexity.User.Id == nil {
+		if e.complexity.User.ID == nil {
 			break
 		}
 
-		return e.complexity.User.Id(childComplexity), true
+		return e.complexity.User.ID(childComplexity), true
 
 	case "User.lastName":
 		if e.complexity.User.LastName == nil {
@@ -373,7 +373,7 @@ input updatePage {
 }
 
 type Mutation {
-  createPage(URL: String!, userID: ObjectID!): Page
+  createPage(URL: String!): Page
   updateUser(input: updateUser!): User!
   updatePage(input: updatePage!): Page!
   deletePage(URL: String!): Boolean
@@ -398,15 +398,6 @@ func (ec *executionContext) field_Mutation_createPage_args(ctx context.Context, 
 		}
 	}
 	args["URL"] = arg0
-	var arg1 primitive.ObjectID
-	if tmp, ok := rawArgs["userID"]; ok {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("userID"))
-		arg1, err = ec.unmarshalNObjectID2goᚗmongodbᚗorgᚋmongoᚑdriverᚋbsonᚋprimitiveᚐObjectID(ctx, tmp)
-		if err != nil {
-			return nil, err
-		}
-	}
-	args["userID"] = arg1
 	return args, nil
 }
 
@@ -552,7 +543,7 @@ func (ec *executionContext) _Mutation_createPage(ctx context.Context, field grap
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().CreatePage(rctx, fc.Args["URL"].(string), fc.Args["userID"].(primitive.ObjectID))
+		return ec.resolvers.Mutation().CreatePage(rctx, fc.Args["URL"].(string))
 	})
 	if err != nil {
 		ec.Error(ctx, err)

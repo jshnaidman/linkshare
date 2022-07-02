@@ -19,7 +19,7 @@ func LoadUsersSessions() {
 		panic(err)
 	}
 
-	for j := 0; j < 10; j++ {
+	for j := 0; j < 3; j++ {
 		users := make([]interface{}, 1e6)
 		sessions := make([]interface{}, 1e6)
 
@@ -63,6 +63,9 @@ func init() {
 	if err != nil {
 		log.Fatalf("Failed to load .env file: %s", err)
 	}
+	conf := utils.GetConf()
+	conf.DBPort = "28017" // I use a different port externally because I don't want it to conflict with my local mongodb instance.
+	conf.SetConnectionURL()
 	rand.Seed(time.Now().UnixNano())
 }
 

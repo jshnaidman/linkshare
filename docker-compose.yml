@@ -7,17 +7,6 @@ services:
       context: api/
       dockerfile: api.dockerfile
       target: dev-target
-    command:
-      [
-        "--listen=:2345",
-        "--headless=true",
-        "--log=true",
-        "--log-output=debugger,debuglineerr",
-        "--accept-multiclient",
-        "--api-version=2",
-        "exec",
-        "/app/linkshare_api"
-      ]
     ports:
       - '5000:5000'
       - '8080:8080'
@@ -28,9 +17,7 @@ services:
     depends_on:
       - mongo
     volumes:
-      - type: bind
-        source: api/
-        target: /app
+      - ./api:/app:rw,delegated
     networks:
       - backend
   mongo:
@@ -43,7 +30,7 @@ services:
       - '127.0.0.1:28017:27017'
     restart: always
     build:
-      context: database/
+      context: db/
       dockerfile: db.dockerfile
     env_file:
       - .env

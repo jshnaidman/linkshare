@@ -5,26 +5,54 @@ package graph
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"linkshare_api/contextual"
 	"linkshare_api/database"
 	"linkshare_api/graph/generated"
 	"linkshare_api/graph/model"
 	"linkshare_api/utils"
-
-	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-func (r *mutationResolver) CreatePage(ctx context.Context, url string, userID primitive.ObjectID) (*model.Page, error) {
+func (r *mutationResolver) CreatePage(ctx context.Context, url string) (*model.Page, error) {
+	user := contextual.UserForContext(ctx)
+	if user == nil {
+		return nil, errors.New("must login to create page")
+	}
 	db, err := database.NewLinkShareDB(ctx)
 	if err != nil {
 		utils.LogError(err.Error())
 		return nil, err
 	}
-	return db.CreatePage(ctx, url, userID, db.Pages.InsertOne)
+	return db.CreatePage(ctx, url, user.ID, db.Pages.InsertOne)
 }
 
-func (r *mutationResolver) UpdateUser(ctx context.Context, input model.UpdateUser) (*model.User, error) {
-	panic(fmt.Errorf("not implemented"))
+// Warning: user in context will be stale after update
+func (r *mutationResolver) UpdateUser(ctx context.Context, input model.UpdateUser) (user *model.User, err error) {
+	user = contextual.UserForContext(ctx)
+	if user == nil {
+		return nil, errors.New("must login to create page")
+	}
+	db, err := database.NewLinkShareDB(ctx)
+	if err != nil {
+		utils.LogError(err.Error())
+		return nil, err
+	}
+	if input.Email != nil {
+		user.Email = input.Email
+	}
+	if input.FirstName != nil {
+		user.FirstName = input.FirstName
+	}
+	if input.LastName != nil {
+		user.LastName = input.LastName
+	}
+	if input.Username != nil {
+		user.Username = input.LastName
+	}
+	err = user.Update(ctx, db.Users.UpdateByID)
+
+	return
 }
 
 func (r *mutationResolver) UpdatePage(ctx context.Context, input model.UpdatePage) (*model.Page, error) {
@@ -35,8 +63,18 @@ func (r *mutationResolver) DeletePage(ctx context.Context, url string) (*bool, e
 	panic(fmt.Errorf("not implemented"))
 }
 
-func (r *queryResolver) User(ctx context.Context, username string) (*model.User, error) {
-	panic(fmt.Errorf("not implemented"))
+func (r *queryResolver) User(ctx context.Context, username string) (user *model.User, err error) {
+	db, err := database.NewLinkShareDB(ctx)
+	if err != nil {
+		utils.LogError(err.Error())
+		return nil, err
+	}
+	// s := strings.Clone(username)
+	user = &model.User{
+		Username: &username,
+	}
+	err = user.LoadByUsername(ctx, db.Users.FindOne)
+	return
 }
 
 func (r *queryResolver) Page(ctx context.Context, url string) (*model.Page, error) {

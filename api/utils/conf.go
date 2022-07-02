@@ -43,8 +43,7 @@ func GetConf() *Conf {
 	if err != nil {
 		panic(err)
 	}
-	gConf.ConnectionURL = fmt.Sprintf("mongodb://%s:%s@%s:%s/?authSource=admin",
-		gConf.DBUsername, gConf.DBPassword, gConf.DBHostname, gConf.DBPort)
+	gConf.SetConnectionURL()
 	if gConf.IsProduction {
 		gConf.DebugMode = false
 		gConf.scheme = "https://"
@@ -55,4 +54,10 @@ func GetConf() *Conf {
 	gConf.FrontendURL = gConf.scheme + gConf.FrontendURL
 
 	return gConf
+}
+
+// set the connection URL based on db parameters
+func (conf *Conf) SetConnectionURL() {
+	conf.ConnectionURL = fmt.Sprintf("mongodb://%s:%s@%s:%s/?authSource=admin",
+		conf.DBUsername, conf.DBPassword, conf.DBHostname, conf.DBPort)
 }

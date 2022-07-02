@@ -71,6 +71,8 @@ func GetDatabase(client *mongo.Client) (database *mongo.Database, err error) {
 	return
 }
 
+// TODO: Should probably change all CRUD operations to be model.Page methods.
+
 // This func doesn't validate if page is valid base64 encoding
 // TODO: Need to add created pageID to owning user
 func (linksDB *LinkShareDB) CreatePage(ctx context.Context, URL string, userID primitive.ObjectID,
@@ -90,7 +92,7 @@ func (linksDB *LinkShareDB) CreatePage(ctx context.Context, URL string, userID p
 
 	insertMap := bson.M{
 		"_id":         createdURL,
-		"dateAdded":   utils.DateTimeNow(),
+		"date_added":  utils.DateTimeNow(),
 		"description": "",
 		"title":       "",
 		"user_id":     userID,

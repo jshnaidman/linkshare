@@ -53,6 +53,7 @@ func NewSessionCookie(sessionID string, expires time.Time) *http.Cookie {
 func AuthMiddleware() utils.Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// TODO: It's important to cache the session and user to avoid doing 2 db queries on every request.
 			db, err := database.NewLinkShareDB(r.Context())
 			defer db.Disconnect(r.Context())
 			if err != nil {

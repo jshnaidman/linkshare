@@ -1,2 +1,4 @@
 .secrets
 .scratch
+api/linkshare_api
+tmp/

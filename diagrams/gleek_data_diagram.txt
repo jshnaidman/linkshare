@@ -9,7 +9,7 @@ User
 
 Page
 	string page_url*
-	int dateAdded
+	int date_added
 	string description
 	string title
 

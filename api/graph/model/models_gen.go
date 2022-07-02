@@ -6,14 +6,6 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-type Page struct {
-	URL          string             `json:"URL"`
-	Description  *string            `json:"description"`
-	Title        *string            `json:"title"`
-	Links        []*string          `json:"links"`
-	OwningUserID primitive.ObjectID `json:"owningUserID"`
-}
-
 type UpdatePage struct {
 	Description *string   `json:"description"`
 	Title       *string   `json:"title"`

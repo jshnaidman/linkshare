@@ -2,6 +2,7 @@ package model
 
 import (
 	"context"
+	"errors"
 	"linkshare_api/utils"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -43,6 +44,20 @@ func (user *User) UpsertUserByGoogleID(ctx context.Context,
 }
 
 func (user *User) Update(ctx context.Context, updateByID utils.UpdateByIDFunc) (err error) {
+	if user.ID.IsZero() {
+		return errors.New("no userID on user")
+	}
 	_, err = updateByID(ctx, user.ID, bson.M{"$set": *user})
+	return
+}
+
+func (user *User) LoadByUsername(ctx context.Context, findOneUser utils.FindOneFunc) (err error) {
+	if len(*user.Username) == 0 {
+		return errors.New("no username on user")
+	}
+	err = findOneUser(ctx, bson.M{
+		"username": user.Username,
+	}).Decode(user)
+
 	return
 }

@@ -10,13 +10,10 @@
             "request": "launch",
             "mode": "auto",
             "program": "${workspaceFolder}/api/server.go",
-        },
-        {
-            "name": "API Test",
-            "type": "go",
-            "request": "launch",
-            "mode": "test",
-            "program": "${workspaceFolder}/api/database/",
+            "envFile": [
+                "${workspaceFolder}/.env",
+                "${workspaceFolder}/.secrets",
+            ],
         },
         {
             "name": "API debug",
@@ -37,11 +34,22 @@
             "program": "${workspaceFolder}/tools/loadDB.go",
         },
         {
-            "name": "API attach debug",
+            "name": "Debug Docker",
             "type": "go",
             "request": "attach",
-            "mode": "local",
+            "mode": "remote",
+            "substitutePath": [
+                {
+                    "from": "${workspaceFolder}/api",
+                    "to": "/app",
+                }
+            ],
+            "host": "127.0.0.1",
             "port": 2345,
-        },
+            "showLog": true,
+            "apiVersion": 2,
+            "trace": "verbose",
+            "logOutput": "rpc"
+        }
     ]
 }

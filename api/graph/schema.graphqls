@@ -29,7 +29,6 @@ type Query {
 
 # Might implement changing googleID later
 input updateUser {
-  userID: ObjectID!
   username: String
   firstName: String
   lastName: String
@@ -43,7 +42,7 @@ input updatePage {
 }
 
 type Mutation {
-  createPage(URL: String!, userID: ObjectID!): Page
+  createPage(URL: String!): Page
   updateUser(input: updateUser!): User!
   updatePage(input: updatePage!): Page!
   deletePage(URL: String!): Boolean

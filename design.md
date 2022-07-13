@@ -141,6 +141,30 @@ The flow that I'm opting to use is instead the following:
 
 - There is also the added benefit that after login, the process of validating the session cookie is the same regardless of however they logged in (don't have different JWTs or have to worry about generating my own JWT)
 
+## CSRF tokens vs SameSite
+
+One option to prevent csrf attacks is to issue csrf tokens which are random tokens that are generated on the backend and sent to the frontend. The frontend attaches these tokens to its requests, and the tokens get validated on the backend. 
+
+Nowadays SameSite=strict can be used to generally prevent csrf attacks. But there are potentially usability issues with this solution. If a user is sent a link to an address which requires an authenticated cookie to view, then the cookie won't be sent and they won't have access to the page. When a cookie has set SameSite=Strict, when the website is accessed via a third-party context (a link from another site), the cookies are not sent. This would also mean that if a user is logged in and has 2 tabs open on your website and they open a link from another website to a new page, they're going to essentially start a new session. If you store all session information including auth in one cookie, then the user will essentially be logged out because they will receive a new session cookie when they click this link. 
+
+SameSite=Lax is like SameSite=Strict, but it only sends cookies on "safe" http methods (GET, HEAD, OPTIONS, and TRACE). 
+
+[There are some vulnerabilities with SameSite=Lax](https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis-02#section-5.3.7.1):
+
+> Attackers can still pop up new windows or trigger top-level
+       navigations in order to create a "same-site" request (as
+       described in section 2.1), which is only a speedbump along the
+       road to exploitation.
+
+> Features like "<link rel='prerender'>" prerendering can be
+       exploited to create "same-site" requests without the risk of user
+       detection.
+
+The prerender bug [seems to have been fixed](https://bugs.chromium.org/p/chromium/issues/detail?id=831725) in Chromium in 2019, so I assume that this isn't really a concern anymore for modern browsers. 
+
+Since the GraphQL api only allows mutations on POST requests, SameSite=Lax is good enough protection against csrf attacks. CSRF tokens are generally more robust against csrf attacks, but I don't have any requirement for this level of robustness for the kind of site I'm building.
+
+
 # Data Model
 
 ![ERD](diagrams/ERD.png)

@@ -9,7 +9,6 @@ import (
 type Conf struct {
 	// required
 	AllowedOrigins         string `env:"ALLOWED_ORIGINS,required=true"`
-	CookieSecret           string `env:"COOKIE_SECRET_BASE64,required=true"`
 	DBName                 string `env:"MONGO_INITDB_DATABASE,required=true"`
 	DBHostname             string `env:"DB_HOSTNAME,required=true"`
 	DBUsername             string `env:"MONGO_INITDB_ROOT_USERNAME,required=true"`
@@ -29,10 +28,6 @@ type Conf struct {
 }
 
 var gConf *Conf
-
-func GetCookieStoreKey() []byte {
-	return GetBytesFromKeyString(GetConf().CookieSecret)
-}
 
 func GetConf() *Conf {
 	if gConf != nil {

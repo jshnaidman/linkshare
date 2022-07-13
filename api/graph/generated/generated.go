@@ -359,7 +359,6 @@ type Query {
 
 # Might implement changing googleID later
 input updateUser {
-  userID: ObjectID!
   username: String
   firstName: String
   lastName: String
@@ -3372,14 +3371,6 @@ func (ec *executionContext) unmarshalInputupdateUser(ctx context.Context, obj in
 
 	for k, v := range asMap {
 		switch k {
-		case "userID":
-			var err error
-
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("userID"))
-			it.UserID, err = ec.unmarshalNObjectID2goᚗmongodbᚗorgᚋmongoᚑdriverᚋbsonᚋprimitiveᚐObjectID(ctx, v)
-			if err != nil {
-				return it, err
-			}
 		case "username":
 			var err error
 

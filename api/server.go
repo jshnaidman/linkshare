@@ -12,7 +12,6 @@ import (
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/playground"
 	"github.com/go-chi/chi"
-	"github.com/rs/cors"
 )
 
 var CSRFHandler utils.Middleware
@@ -31,15 +30,14 @@ func main() {
 
 	// Add CORS middleware around every request
 	// See https://github.com/rs/cors for full option listing
-	corsMiddleware := cors.New(cors.Options{
-		AllowedOrigins:   []string{conf.AllowedOrigins},
-		AllowCredentials: true,
-		Debug:            conf.DebugMode,
-	}).Handler
+	// corsMiddleware := cors.New(cors.Options{
+	// 	AllowedOrigins:   []string{conf.AllowedOrigins},
+	// 	AllowCredentials: true,
+	// 	Debug:            conf.DebugMode,
+	// }).Handler
 
-	router.Use(corsMiddleware, auth.AuthMiddleware())
-
-	// router.Use(auth.Middleware())
+	// router.Use(corsMiddleware)
+	//router.Use(auth.AuthMiddleware())
 
 	srv := handler.NewDefaultServer(generated.NewExecutableSchema(generated.Config{Resolvers: &graph.Resolver{}}))
 	router.Handle("/", playground.Handler("Linkshare", "/query"))

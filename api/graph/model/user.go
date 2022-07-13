@@ -18,7 +18,7 @@ type User struct {
 	LastName  *string            `json:"lastName" bson:"last_name,omitempty"`
 	Email     *string            `json:"email" bson:"email,omitempty"`
 	GoogleID  *string            `json:"googleID" bson:"google_id,omitempty"`
-	PageURLs  []string           `json:"pageURLs" bson:"pages"`
+	PageURLs  []string           `json:"pageURLs" bson:"pages,omitempty"`
 	Schema    int                `json:"-" bson:"schema"` // omitted from graphql
 }
 
@@ -43,11 +43,11 @@ func (user *User) UpsertUserByGoogleID(ctx context.Context,
 	return updatedUser, err
 }
 
-func (user *User) Update(ctx context.Context, updateByID utils.UpdateByIDFunc) (err error) {
+func (user *User) Update(ctx context.Context, updateUserByID utils.UpdateByIDFunc) (err error) {
 	if user.ID.IsZero() {
 		return errors.New("no userID on user")
 	}
-	_, err = updateByID(ctx, user.ID, bson.M{"$set": *user})
+	_, err = updateUserByID(ctx, user.ID, bson.M{"$set": *user})
 	return
 }
 
@@ -59,5 +59,35 @@ func (user *User) LoadByUsername(ctx context.Context, findOneUser utils.FindOneF
 		"username": user.Username,
 	}).Decode(user)
 
+	return
+}
+
+func (user *User) LoadByID(ctx context.Context, findOneUser utils.FindOneFunc) (err error) {
+	if user.ID.IsZero() {
+		return errors.New("no userID on user")
+	}
+	err = findOneUser(ctx, bson.M{
+		"_id": user.ID,
+	}).Decode(user)
+
+	return
+}
+
+func (user *User) PushPage(ctx context.Context, page string, updateUserByID utils.UpdateByIDFunc) (err error) {
+	if user.ID.IsZero() {
+		return errors.New("no userID on user")
+	}
+	_, err = updateUserByID(ctx, user.ID, bson.M{"$push": bson.M{
+		"pages": page,
+	}})
+	return
+}
+func (user *User) DeleteByUsername(ctx context.Context, deleteOneUser utils.DeleteOneFunc) (err error) {
+	if len(*user.Username) == 0 {
+		return errors.New("no username on user")
+	}
+	_, err = deleteOneUser(ctx, bson.M{
+		"username": user.Username,
+	})
 	return
 }

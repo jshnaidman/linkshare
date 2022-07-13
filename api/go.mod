@@ -9,10 +9,10 @@ require (
 	github.com/go-chi/chi v1.5.4
 	github.com/gorilla/securecookie v1.1.1
 	github.com/joho/godotenv v1.4.0
-	github.com/rs/cors v1.8.2
 	github.com/vektah/gqlparser/v2 v2.4.5
 	go.mongodb.org/mongo-driver v1.9.1
 	google.golang.org/api v0.85.0
+	golang.org/x/exp v0.0.0-20220706164943-b4a6d9510983
 )
 
 require (

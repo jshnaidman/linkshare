@@ -59,13 +59,14 @@ func LoadUsersSessions() {
 }
 
 func init() {
-	err := godotenv.Load("../.env", "../.secrets")
+	err := godotenv.Load("../../.env", "../../.secrets")
 	if err != nil {
 		log.Fatalf("Failed to load .env file: %s", err)
 	}
-	conf := utils.GetConf()
-	conf.DBPort = "28017" // I use a different port externally because I don't want it to conflict with my local mongodb instance.
-	conf.SetConnectionURL()
+	err = godotenv.Overload(".env")
+	if err != nil {
+		log.Fatalf("Failed to load .env file: %s", err)
+	}
 	rand.Seed(time.Now().UnixNano())
 }
 

@@ -2,10 +2,6 @@
 
 package model
 
-import (
-	"go.mongodb.org/mongo-driver/bson/primitive"
-)
-
 type UpdatePage struct {
 	Description *string   `json:"description"`
 	Title       *string   `json:"title"`
@@ -13,9 +9,8 @@ type UpdatePage struct {
 }
 
 type UpdateUser struct {
-	UserID    primitive.ObjectID `json:"userID"`
-	Username  *string            `json:"username"`
-	FirstName *string            `json:"firstName"`
-	LastName  *string            `json:"lastName"`
-	Email     *string            `json:"email"`
+	Username  *string `json:"username"`
+	FirstName *string `json:"firstName"`
+	LastName  *string `json:"lastName"`
+	Email     *string `json:"email"`
 }

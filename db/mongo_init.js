@@ -92,7 +92,7 @@ db.createCollection('users', {
 // usernames queried often
 db.users.createIndex({ username: 1 }, {
     unique: true, partialFilterExpression: {
-        username: { $type: "string" }
+        username: { "$exists": true }
     }
 })
 

@@ -24,12 +24,11 @@ func (r *mutationResolver) CreatePage(ctx context.Context, url string) (*model.P
 		utils.LogError(err.Error())
 		return nil, err
 	}
-	return db.CreatePage(ctx, url, user.ID, db.Pages.InsertOne)
+	return db.CreatePage(ctx, url, user.ID, db.Pages.InsertOne, db.Users.UpdateByID)
 }
 
-// Warning: user in context will be stale after update
-func (r *mutationResolver) UpdateUser(ctx context.Context, input model.UpdateUser) (user *model.User, err error) {
-	user = contextual.UserForContext(ctx)
+func (r *mutationResolver) UpdateUser(ctx context.Context, input model.UpdateUser) (*model.User, error) {
+	user := contextual.UserForContext(ctx)
 	if user == nil {
 		return nil, errors.New("must login to create page")
 	}
@@ -52,7 +51,7 @@ func (r *mutationResolver) UpdateUser(ctx context.Context, input model.UpdateUse
 	}
 	err = user.Update(ctx, db.Users.UpdateByID)
 
-	return
+	return user, err
 }
 
 func (r *mutationResolver) UpdatePage(ctx context.Context, input model.UpdatePage) (*model.Page, error) {
@@ -63,22 +62,30 @@ func (r *mutationResolver) DeletePage(ctx context.Context, url string) (*bool, e
 	panic(fmt.Errorf("not implemented"))
 }
 
-func (r *queryResolver) User(ctx context.Context, username string) (user *model.User, err error) {
+func (r *queryResolver) User(ctx context.Context, username string) (*model.User, error) {
 	db, err := database.NewLinkShareDB(ctx)
 	if err != nil {
 		utils.LogError(err.Error())
 		return nil, err
 	}
-	// s := strings.Clone(username)
-	user = &model.User{
+	user := &model.User{
 		Username: &username,
 	}
 	err = user.LoadByUsername(ctx, db.Users.FindOne)
-	return
+	return user, err
 }
 
 func (r *queryResolver) Page(ctx context.Context, url string) (*model.Page, error) {
-	panic(fmt.Errorf("not implemented"))
+	db, err := database.NewLinkShareDB(ctx)
+	if err != nil {
+		utils.LogError(err.Error())
+		return nil, err
+	}
+	page := &model.Page{
+		URL: url,
+	}
+	page.LoadByURL(ctx, db.Pages.FindOne)
+	return page, err
 }
 
 // Mutation returns generated.MutationResolver implementation.

@@ -1,6 +1,6 @@
 version: '3.8'
 
-# this whole file is speculative, haven't ran/planned out yet. Might do kubernetes in prod.
+# this whole file is speculative and needs to be updated to be usable (haven't ran/planned out yet). Might do kubernetes in prod.
 
 services:
   api:

@@ -27,6 +27,10 @@ func init() {
 	if err != nil {
 		log.Fatalf("Failed to load .env file: %s", err)
 	}
+	err = godotenv.Overload("../.testenv")
+	if err != nil {
+		log.Fatalf("Failed to load .env file: %s", err)
+	}
 	rand.Seed(time.Now().UnixNano())
 
 	testUser = &model.User{

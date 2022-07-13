@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -56,14 +57,23 @@ func GetBytesFromKeyString(encodedString string) []byte {
 
 func MarshalObjectID(objectID primitive.ObjectID) graphql.Marshaler {
 	return graphql.WriterFunc(func(w io.Writer) {
-		w.Write([]byte(objectID.String()))
+		bytes := []byte(
+			strconv.Quote(objectID.Hex()),
+		)
+		w.Write(bytes)
 	})
 }
 
-func UnmarshalObjectID(v interface{}) (primitive.ObjectID, error) {
+func UnmarshalObjectID(v interface{}) (objID primitive.ObjectID, err error) {
 	objIDStr, ok := v.(string)
 	if !ok {
 		return primitive.ObjectID{}, fmt.Errorf("%T is not a string", v)
 	}
-	return primitive.ObjectIDFromHex(objIDStr)
+	objID = primitive.ObjectID{}
+	objIDStr, err = strconv.Unquote(objIDStr)
+	if err != nil {
+		return primitive.NilObjectID, err
+	}
+	objID.UnmarshalText([]byte(objIDStr))
+	return
 }

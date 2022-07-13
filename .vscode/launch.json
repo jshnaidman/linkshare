@@ -31,7 +31,7 @@
             "type": "go",
             "request": "launch",
             "mode": "auto",
-            "program": "${workspaceFolder}/tools/loadDB.go",
+            "program": "${workspaceFolder}/tools/loadDB/main.go",
         },
         {
             "name": "Debug Docker",
@@ -42,6 +42,10 @@
                 {
                     "from": "${workspaceFolder}/api",
                     "to": "/app",
+                },
+                {
+                    "from": "${userHome}/go",
+                    "to": "/go"
                 }
             ],
             "host": "127.0.0.1",
@@ -49,7 +53,7 @@
             "showLog": true,
             "apiVersion": 2,
             "trace": "verbose",
-            "logOutput": "rpc"
+            "logOutput": "rpc",
         }
     ]
 }

@@ -3,6 +3,8 @@ package database
 import (
 	"context"
 	"errors"
+	"linkshare_api/graph/model"
+	"linkshare_api/utils"
 	"log"
 	"math/rand"
 	"strings"
@@ -15,6 +17,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/mongo/readpref"
+	"golang.org/x/exp/slices"
 )
 
 // TODO: cleanup changes to DB after running tests
@@ -24,6 +27,11 @@ func init() {
 	if err != nil {
 		log.Fatalf("Failed to load .env file: %s", err)
 	}
+	err = godotenv.Overload("../.testenv")
+	if err != nil {
+		log.Fatalf("Failed to load .env file: %s", err)
+	}
+	_ = utils.GetConf()
 	rand.Seed(time.Now().UnixNano())
 }
 
@@ -53,17 +61,39 @@ func TestCreatePage(t *testing.T) {
 	}
 	for i := 0; i < runs; i++ {
 		start := time.Now()
-		page, err := linksDB.CreatePage(context.TODO(), "", primitive.NewObjectID(), linksDB.Pages.InsertOne)
+		username := "testUser"
+		googleID := "testGoogleID"
+		objID := primitive.NewObjectID()
+		user := &model.User{
+			ID:       objID,
+			Username: &username,
+			GoogleID: &googleID,
+		}
+		// delete user if pre-existing
+		user.DeleteByUsername(context.TODO(), linksDB.Users.DeleteOne)
+		// insert new test user with new immutable _id
+		user, err := user.UpsertUserByGoogleID(context.TODO(), linksDB.Users.FindOneAndUpdate)
+		if err != nil {
+			t.Fatalf("Failed to create test user: %s", err)
+		}
+
+		page, err := linksDB.CreatePage(context.TODO(), "", user.ID,
+			linksDB.Pages.InsertOne, linksDB.Users.UpdateByID)
 		elapsed := time.Since(start)
 		total += elapsed
 		if err != nil {
-			t.Fatalf("failed to create a new page: \n%s", err)
+			t.Fatalf("failed to create a new page %s, got: \n%s", page.URL, err)
 		}
 		pageURL := page.URL
 		if pageURLs[pageURL] {
 			t.Fatalf("pageURL is not unique")
 		}
 		pageURLs[pageURL] = true
+
+		user.LoadByID(context.TODO(), linksDB.Users.FindOne)
+		if !slices.Contains(user.PageURLs, pageURL) {
+			t.Fatalf("Owning user does not have the page listed")
+		}
 	}
 	t.Logf("CreatePage took %s\n", total/time.Duration(runs))
 }
@@ -75,14 +105,16 @@ func TestCreatePageNameTaken(t *testing.T) {
 	}
 	test_URL := "my_page"
 	linksDB.Pages.DeleteOne(context.TODO(), bson.M{"_id": test_URL})
-	page, err := linksDB.CreatePage(context.TODO(), test_URL, primitive.NewObjectID(), linksDB.Pages.InsertOne)
+	page, err := linksDB.CreatePage(context.TODO(), test_URL, primitive.NewObjectID(),
+		linksDB.Pages.InsertOne, linksDB.Users.UpdateByID)
 	if page.URL != test_URL {
 		t.Fatal("created URL not same as input URL")
 	}
 	if err != nil {
 		t.Fatalf("failed to create %s", test_URL)
 	}
-	_, err = linksDB.CreatePage(context.TODO(), test_URL, primitive.NewObjectID(), linksDB.Pages.InsertOne)
+	_, err = linksDB.CreatePage(context.TODO(), test_URL, primitive.NewObjectID(),
+		linksDB.Pages.InsertOne, linksDB.Users.UpdateByID)
 	_, isURLTakenError := err.(URLTakenError)
 	if !isURLTakenError {
 		t.Fatalf("expected URLTakenError, got: %s", err)
@@ -101,7 +133,11 @@ func TestPageCreationLottery(t *testing.T) {
 		missCount++
 		return nil, errors.New("E11000 duplicate key error")
 	}
-	_, err = linksDB.CreatePage(context.TODO(), "", primitive.NewObjectID(), insertMock)
+	updateMock := func(ctx context.Context, id interface{}, update interface{},
+		opts ...*options.UpdateOptions) (*mongo.UpdateResult, error) {
+		return nil, nil
+	}
+	_, err = linksDB.CreatePage(context.TODO(), "", primitive.NewObjectID(), insertMock, updateMock)
 
 	if missCount != 3 {
 		t.Errorf("expected missCount to be 3, got: %d", missCount)

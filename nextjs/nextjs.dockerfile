@@ -7,7 +7,7 @@ RUN addgroup -S nextGroup && adduser -S nextjs -G nextGroup
 ENV NODE_ENV=development
 ENV PATH $PATH:/usr/src/app/node_modules/.bin
 
-COPY --chown=nextjs:nextGroup package.json yarn.lock ./
+COPY --chown=nextjs:nextGroup package.json ./
 RUN yarn install --frozen-lockfile
 
 COPY --chown=nextjs:nextGroup . .

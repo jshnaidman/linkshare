@@ -2,13 +2,18 @@
 
 ## HOW TO RUN
 
-Configure a root-level .secrets file from the .secrets.sample file and fill out the missing fields. 
-
+Configure a root-level .secrets file from the .secrets.sample file and fill out the missing fields.
 
 To fill out the .secrets file, you will need a [Google Client ID](https://developers.google.com/workspace/guides/create-credentials) for the google login button on the frontend.
 
-Then, execute docker-compose up -d (must have docker installed)
+Since the nextjs image is mounted in development, you need to run npm install from the nextjs/ directory. You can remove the mount if you want.
 
+```
+cd nextjs
+npm install
+```
+
+Then, execute `docker-compose up -d` (must have docker installed)
 
 ## Tech Stack
 

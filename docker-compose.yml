@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
   api:
@@ -8,9 +8,9 @@ services:
       dockerfile: api.dockerfile
       target: dev-target
     ports:
-      - '5000:5000'
-      - '8080:8080'
-      - '2345:2345'
+      - "5000:5000"
+      - "8080:8080"
+      - "2345:2345"
     env_file:
       - .env
       - .secrets
@@ -27,7 +27,7 @@ services:
     networks:
       - backend
     ports:
-      - '127.0.0.1:28017:27017'
+      - "127.0.0.1:28017:27017"
     restart: always
     build:
       context: db/
@@ -51,7 +51,7 @@ services:
       - .secrets
     ports:
       - 3000:3000
-    command: yarn next dev
+    command: yarn run dev
 
 volumes:
   db-data: {}
